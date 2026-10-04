@@ -432,7 +432,7 @@ void CHyprBar::sekaiRunButton(int idx) {
         if (b.icon == "sekai:close")
             g_pKeybindManager->m_dispatchers["closewindow"](ADDR);
         else if (b.icon == "sekai:min")
-            g_pKeybindManager->m_dispatchers["movetoworkspacesilent"]("special:min," + ADDR);
+            g_pKeybindManager->m_dispatchers["sekaiminimize"]("on," + ADDR); // SEKAI_MINIMIZE2
         else {
             g_pCompositor->focusWindow(W); // fullscreen 은 초점 창에 걸린다 — 방금(누를 때) 준 초점을 확실히
             if (g_pCompositor->m_lastWindow.lock() == W)

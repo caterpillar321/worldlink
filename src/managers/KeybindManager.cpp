@@ -69,6 +69,19 @@ static std::vector<std::pair<std::string, std::string>> getHyprlandLaunchEnv(PHL
 }
 
 CKeybindManager::CKeybindManager() {
+    // SEKAI_MINIMIZE2: sekaiminimize on|off|toggle[,<창>] — 창을 안 주면 지금 창
+    m_dispatchers["sekaiminimize"] = [](std::string args) -> SDispatchResult {
+        const auto COMMA = args.find(',');
+        const auto MODE  = trim(args.substr(0, COMMA));
+        const auto W     = COMMA == std::string::npos ? g_pCompositor->m_lastWindow.lock() : g_pCompositor->getWindowByRegex(trim(args.substr(COMMA + 1)));
+        if (!W)
+            return {.success = false, .error = "No such window found"};
+        const bool ON = MODE == "on" ? true : MODE == "off" ? false : !W->m_sekaiMinimized;
+        W->sekaiSetMinimized(ON);
+        if (!ON)
+            g_pCompositor->focusWindow(W);
+        return {};
+    };
     // initialize all dispatchers
 
     m_dispatchers["exec"]                           = spawn;
@@ -2331,6 +2344,9 @@ SDispatchResult CKeybindManager::focusWindow(std::string regexp) {
 
     if (!PWINDOW)
         return {.success = false, .error = "No such window found"};
+
+    if (PWINDOW->m_sekaiMinimized) // SEKAI_MINIMIZE2: 최소화한 창을 고르면 되살린다 (작업 표시줄·Alt+Tab·앱의 활성화)
+        PWINDOW->sekaiSetMinimized(false);
 
     Debug::log(LOG, "Focusing to window name: {}", PWINDOW->m_title);
 

@@ -1377,7 +1377,7 @@ void sekaiFullscreenSync(PHLWORKSPACE ws, PHLWINDOW gone = nullptr) {
         return;
     PHLWINDOW top;
     for (auto const& w : g_pCompositor->m_windows)
-        if (w != gone && w->m_workspace == ws && w->m_isMapped && w->isFullscreen())
+        if (w != gone && w->m_workspace == ws && w->m_isMapped && !w->isHidden() && w->isFullscreen()) // 최소화한 창은 빼고
             top = w; // 뒤로 갈수록 위
     ws->m_hasFullscreenWindow = top != nullptr;
     ws->m_fullscreenMode      = !top ? FSMODE_NONE : (top->m_fullscreenState.internal & FSMODE_FULLSCREEN) ? FSMODE_FULLSCREEN : FSMODE_MAXIMIZED;

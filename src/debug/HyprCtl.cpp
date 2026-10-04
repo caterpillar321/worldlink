@@ -291,7 +291,8 @@ std::string CHyprCtl::getWindowData(PHLWINDOW w, eHyprCtlOutputFormat format) {
     "sekaiParent": "0x{:x}",
     "sekaiFixed": {},
     "sekaiCSD": {},
-    "sekaiTop": {}
+    "sekaiTop": {},
+    "sekaiMinimized": {}
 }},)#",
             (uintptr_t)w.get(), (w->m_isMapped ? "true" : "false"), (w->isHidden() ? "true" : "false"), (int)w->m_realPosition->goal().x, (int)w->m_realPosition->goal().y,
             (int)w->m_realSize->goal().x, (int)w->m_realSize->goal().y, w->m_workspace ? w->workspaceID() : WORKSPACE_INVALID,
@@ -304,7 +305,8 @@ std::string CHyprCtl::getWindowData(PHLWINDOW w, eHyprCtlOutputFormat format) {
             (w->sekaiFixedSize() ? "true" : "false"), // SEKAI_FIXED_SIZE: 크기 고정 창 — 셸이 스냅하지 않게
             (w->sekaiClientDecoration() ? "true" : "false"), // SEKAI_CLIENT_DECO: 제목줄을 앱이 그린다
             // SEKAI_FRAME_TOP: 창 영역 위에 장식(제목줄 막대)이 차지하는 높이 — 셸이 규칙·설정으로 다시 짐작하지 않게
-            (int)std::round(g_pDecorationPositioner->getWindowDecorationReserved(w).topLeft.y));
+            std::max(0, (int)std::round(g_pDecorationPositioner->getWindowDecorationReserved(w).topLeft.y) - w->getRealBorderSize()), // (테두리는 빼고)
+            (w->m_sekaiMinimized ? "true" : "false")); // SEKAI_MINIMIZE2
     } else {
         return std::format(
             "Window {:x} -> {}:\n\tmapped: {}\n\thidden: {}\n\tat: {},{}\n\tsize: {},{}\n\tworkspace: {} ({})\n\tfloating: {}\n\tpseudo: {}\n\tmonitor: {}\n\tclass: {}\n\ttitle: "

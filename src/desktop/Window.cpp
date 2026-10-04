@@ -10,6 +10,9 @@
 #include "Window.hpp"
 #include "../Compositor.hpp"
 #include "../managers/KeybindManager.hpp" // SEKAI_MINIMIZE
+#include "../managers/EventManager.hpp"
+#include "../managers/LayoutManager.hpp"
+void sekaiFullscreenSync(PHLWORKSPACE ws, PHLWINDOW gone = nullptr); // SEKAI_MULTIMAX (Compositor.cpp)
 #include "../render/decorations/CHyprDropShadowDecoration.hpp"
 #include "../render/decorations/CHyprGroupBarDecoration.hpp"
 #include "../render/decorations/CHyprBorderDecoration.hpp"
@@ -1447,11 +1450,11 @@ bool sekaiTakeInitialMaximize(PHLWINDOW w) { // events/Windows.cpp mapWindow 이
 
 void CWindow::onUpdateState() {
     // SEKAI_MINIMIZE: 앱이 스스로 청한 최소화 (크롬·GTK 의 최소화 단추, X11 의 WM_CHANGE_STATE) — 원래는 받아 두기만 했다.
-    //   SekaiOS 의 최소화(숨김 작업 공간 special:min — 제목줄의 최소화 단추와 같은 명령, 이 창 주소로)
+    //   SekaiOS 의 최소화(제목줄의 최소화 단추와 같은 것 — sekaiSetMinimized)
     {
         const std::optional<bool> MN = m_xdgSurface ? m_xdgSurface->m_toplevel->m_state.requestsMinimize : m_xwaylandSurface->m_state.requestsMinimize;
-        if (MN.value_or(false) && m_isMapped && m_workspace && !m_workspace->m_isSpecialWorkspace)
-            g_pKeybindManager->m_dispatchers["movetoworkspacesilent"](std::format("special:min,address:0x{:x}", (uintptr_t)this));
+        if (MN.value_or(false) && m_isMapped && m_workspace)
+            sekaiSetMinimized(true); // SEKAI_MINIMIZE2
     }
 
     std::optional<bool>      requestsFS = m_xdgSurface ? m_xdgSurface->m_toplevel->m_state.requestsFullscreen : m_xwaylandSurface->m_state.requestsFullscreen;
@@ -1943,4 +1946,37 @@ PHLWINDOW CWindow::parent() {
 
 bool CWindow::priorityFocus() {
     return !m_isX11 && CAsyncDialogBox::isPriorityDialogBox(getPID());
+}
+
+void CWindow::sekaiSetMinimized(bool on) {
+    if (on == m_sekaiMinimized || !m_isMapped)
+        return;
+    const auto SELF = m_self.lock();
+    // 되살릴 때 부모가 최소화돼 있으면 부모부터 — 부모가 딸린 창(이 창 포함)을 함께 되살린다 (대화상자만 홀로 뜨지 않게)
+    if (!on) {
+        if (const auto P = parent(); P && P->m_isMapped && P->m_sekaiMinimized) {
+            P->sekaiSetMinimized(false);
+            return;
+        }
+    }
+    m_sekaiMinimized = on;
+    // 딸린 창(대화상자)도 함께 — "저장할까요?" 창만 바탕화면에 남지 않게 (윈도우처럼)
+    for (auto const& w : g_pCompositor->m_windows) {
+        if (w != SELF && w->m_isMapped && w->parent() == SELF)
+            w->sekaiSetMinimized(on);
+    }
+    if (on) {
+        const bool HADFOCUS = g_pCompositor->m_lastWindow.lock() == SELF;
+        setHidden(true);
+        if (HADFOCUS) // 초점은 다음 창으로 (숨긴 창에 남지 않게)
+            g_pCompositor->focusWindow(g_pLayoutManager->getCurrentLayout()->getNextWindowCandidate(SELF));
+    } else {
+        setHidden(false);
+        g_pCompositor->changeWindowZOrder(SELF, true);
+    }
+    if (m_workspace)
+        m_workspace->updateWindows();
+    sekaiFullscreenSync(m_workspace);
+    g_pHyprRenderer->damageWindow(SELF);
+    g_pEventManager->postEvent(SHyprIPCEvent{"sekaiminimized", std::format("{:x},{}", (uintptr_t)this, on ? 1 : 0)});
 }
