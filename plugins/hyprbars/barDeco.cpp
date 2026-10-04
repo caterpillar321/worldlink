@@ -24,61 +24,8 @@ static bool sekaiDialogSkip(const PHLWINDOW& w, const std::string& icon) {
     return ((icon == "sekai:min" || icon == "sekai:max") && w->parent()) || (icon == "sekai:max" && w->sekaiFixedSize());
 }
 
-// ── SEKAI_SNAP: 끌어서 스냅 ─────────────────────────────────────
-static std::string sekaiZone = "none";
+// ── SEKAI_SNAP: 끌어서 스냅 — 영역 판단은 셸이 (합성기의 sekaidrag 이벤트, SEKAI_DRAG_IPC) ─
 
-static std::string sekaiZoneAt(const Vector2D& p, PHLMONITOR& mon) {
-    mon = g_pCompositor->getMonitorFromVector(p);
-    if (!mon)
-        return "none";
-    const double x = p.x - mon->m_position.x, y = p.y - mon->m_position.y;
-    const double W = mon->m_size.x, H = mon->m_size.y;
-    const double E = 4;                                  // 가장자리로 치는 두께
-    const double C = std::max(48.0, std::min(W, H) / 8); // 모서리로 치는 길이
-    const bool   L = x <= E, R = x >= W - 1 - E, T = y <= E, B = y >= H - 1 - E;
-    if ((L && y < C) || (T && x < C))
-        return "tl";
-    if ((R && y < C) || (T && x > W - C))
-        return "tr";
-    if ((L && y > H - C) || (B && x < C))
-        return "bl";
-    if ((R && y > H - C) || (B && x > W - C))
-        return "br";
-    if (L)
-        return "left";
-    if (R)
-        return "right";
-    if (T)
-        return "max";
-    return "none";
-}
-
-static void sekaiSnapTrack() {
-    PHLMONITOR mon;
-    const auto z = sekaiZoneAt(g_pInputManager->getMouseCoordsInternal(), mon);
-    if (z == sekaiZone)
-        return;
-    sekaiZone = z;
-    g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnap", std::format("{},{}", z, mon ? mon->m_name : "")});
-}
-
-static void sekaiSnapDrop(PHLWINDOW w) {
-    PHLMONITOR mon;
-    const auto z = sekaiZoneAt(g_pInputManager->getMouseCoordsInternal(), mon);
-    sekaiZone    = "none";
-    if (!w)
-        return;
-    g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnapdrop", std::format("{},{},{:x}", z, mon ? mon->m_name : "", (uintptr_t)w.get())});
-}
-
-static bool sekaiCancelled() { // SEKAI_DRAG_CANCEL: 이번 끌기를 Esc 로 취소했다 (합성기가 이미 되돌렸다)
-    return g_pLayoutManager->getCurrentLayout() && g_pLayoutManager->getCurrentLayout()->sekaiDragCancelled();
-}
-
-static void sekaiSnapCancel() { // SEKAI_SNAP_GONE: 끄던 창이 없어졌다 — 셸이 끌기를 끝내게
-    sekaiZone = "none";
-    g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnapdrop", "none,,0"});
-}
 #include "BarPassElement.hpp"
 
 CHyprBar::CHyprBar(PHLWINDOW pWindow) : IHyprWindowDecoration(pWindow) {
@@ -111,8 +58,6 @@ CHyprBar::CHyprBar(PHLWINDOW pWindow) : IHyprWindowDecoration(pWindow) {
 }
 
 CHyprBar::~CHyprBar() {
-    if (m_bDraggingThis) // SEKAI_SNAP_GONE
-        sekaiSnapCancel();
     HyprlandAPI::unregisterCallback(PHANDLE, m_pMouseButtonCallback);
     HyprlandAPI::unregisterCallback(PHANDLE, m_pTouchDownCallback);
     HyprlandAPI::unregisterCallback(PHANDLE, m_pTouchUpCallback);
@@ -285,9 +230,6 @@ void CHyprBar::onMouseMove(Vector2D coords) {
     (void)PICONONHOVER;
     damageOnButtonHover(); // SEKAI_BUTTON_HOVER — 배경 효과를 위해 언제나
 
-    if (m_bDraggingThis && !m_bTouchEv && !sekaiCancelled()) // SEKAI_SNAP (Esc 로 취소했으면 미리보기도 없다)
-        sekaiSnapTrack();
-
     if (!m_bDragPending || m_bTouchEv || !validMapped(m_pWindow))
         return;
 
@@ -406,7 +348,6 @@ void CHyprBar::handleUpEvent(SCallbackInfo& info) {
             g_pKeybindManager->m_dispatchers["mouse"]("0movewindow");
             m_bDraggingThis = false;
             m_bDragPending  = false;
-            sekaiSnapCancel();
         }
         // SEKAI_BAR_INPUT: 창이 초점을 잃은 사이(최소화 단추·저장할까요 창) 뗌 — 우리가 삼킨 누름의 뗌이면
         //   함께 삼키고, 표시는 모두 지운다
@@ -426,8 +367,6 @@ void CHyprBar::handleUpEvent(SCallbackInfo& info) {
     if (m_bDraggingThis) {
         g_pKeybindManager->m_dispatchers["mouse"]("0movewindow");
         m_bDraggingThis = false;
-        if (!sekaiCancelled())
-            sekaiSnapDrop(m_pWindow.lock()); // SEKAI_SNAP
 
         Debug::log(LOG, "[hyprbars] Dragging ended on {:x}", (uintptr_t)m_pWindow.lock().get());
     }
@@ -442,8 +381,6 @@ void CHyprBar::handleMovement() {
     if (!m_bTouchEv && g_pLayoutManager->getCurrentLayout())
         g_pLayoutManager->getCurrentLayout()->sekaiSetDragAnchor(m_sekaiPressXY);
     m_bDraggingThis = true;
-    sekaiZone       = "none"; // SEKAI_SNAP
-    g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnapstart", std::format("{:x}", (uintptr_t)m_pWindow.lock().get())});
     Debug::log(LOG, "[hyprbars] Dragging initiated on {:x}", (uintptr_t)m_pWindow.lock().get());
     return;
 }

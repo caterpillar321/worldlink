@@ -369,7 +369,6 @@ bool IHyprLayout::sekaiCancelDrag() {
     g_pKeybindManager->changeMouseBindMode(MBIND_INVALID); // → onEndDragWindow 가 되돌린다
     m_sekaiCancelling    = false;
     m_sekaiDragCancelled = true;
-    g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnapdrop", "none,,0"}); // 셸의 스냅 미리보기를 닫는다
     Debug::log(LOG, "[sekai] 끌기 취소(Esc): {} → {} {}", W, m_sekaiCancelPos, m_sekaiCancelSize);
     return true;
 }

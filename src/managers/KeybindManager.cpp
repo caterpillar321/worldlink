@@ -2857,12 +2857,25 @@ SDispatchResult CKeybindManager::changeMouseBindMode(const eMouseBindMode MODE) 
         g_pInputManager->m_dragMode = MODE;
 
         g_pLayoutManager->getCurrentLayout()->onBeginDragWindow();
+        // SEKAI_DRAG_IPC: 창 끌기(우리 막대·앱이 그린 제목줄·Super+끌기 모두 여기를 지난다)를 셸에 알린다 — 스냅 영역·
+        //   레이아웃 바 판단은 셸이 한 곳에서 (예전엔 합성기와 hyprbars 가 영역 계산을 두 벌 들고, 셸은 커서를 폴링했다)
+        if (MODE == MBIND_MOVE)
+            g_pEventManager->postEvent(SHyprIPCEvent{"sekaidrag", std::format("start,{:x}", (uintptr_t)g_pInputManager->m_currentlyDraggedWindow.lock().get())});
     } else {
         if (g_pInputManager->m_currentlyDraggedWindow.expired() || g_pInputManager->m_dragMode == MBIND_INVALID)
             return {};
 
+        const auto PREV   = g_pInputManager->m_dragMode;
+        const auto W      = g_pInputManager->m_currentlyDraggedWindow.lock();
+        const auto CANCEL = g_pLayoutManager->getCurrentLayout()->sekaiIsCancelling();
         g_pLayoutManager->getCurrentLayout()->onEndDragWindow();
         g_pInputManager->m_dragMode = MODE;
+        if (PREV == MBIND_MOVE) { // SEKAI_DRAG_IPC: 놓음(자리) 또는 Esc 취소
+            const auto P = g_pInputManager->getMouseCoordsInternal();
+            g_pEventManager->postEvent(SHyprIPCEvent{"sekaidrag",
+                                                     CANCEL ? std::format("cancel,{:x}", (uintptr_t)W.get()) :
+                                                              std::format("end,{:x},{},{}", (uintptr_t)W.get(), (int)std::round(P.x), (int)std::round(P.y))});
+        }
     }
 
     return {};

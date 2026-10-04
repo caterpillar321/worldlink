@@ -51,6 +51,9 @@ class IHyprLayout {
     // SEKAI_DRAG_ANCHOR: 끌기의 기준점을 누른 자리로 (제목줄 플러그인이 첫 움직임에서야 끌기를 넘겨도 그만큼 잃지 않게)
     void sekaiSetDragAnchor(const Vector2D& pos);
     bool sekaiCancelDrag(); // SEKAI_DRAG_CANCEL: 끄는 중 Esc — 처음 자리·크기로 되돌리고 끌기를 끝낸다
+    bool sekaiIsCancelling() const { // SEKAI_DRAG_IPC: 지금 Esc 로 끌기를 되돌리는 중
+        return m_sekaiCancelling;
+    }
     bool sekaiDragCancelled() const {
         return m_sekaiDragCancelled;
     }

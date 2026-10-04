@@ -101,36 +101,9 @@ static int sekaiBorderAt(PHLWINDOW w, const Vector2D& p, double outer) {
 // ── SEKAI_CLIENT_MOVE: 창이 스스로 그린 제목줄(CSD) 끌기 ─────────────────
 //   XDGShell.cpp 의 move 요청에서 시작, 버튼을 떼면 끝. 스냅 이벤트는 hyprbars 패치와 같다.
 static bool         sekaiMoving    = false;
-static std::string  sekaiMoveZone  = "none";
 static PHLWINDOWREF sekaiMoveWin;
 static bool         sekaiButtonHeld = false; // SEKAI_CLIENT_MOVE2: 지금 마우스 버튼이 눌려 있나 (onMouseButton 이 적는다)
 static Vector2D     sekaiPressXY;            // SEKAI_CLIENT_MOVE3: 마지막으로 버튼을 누른 자리 (끌기 기준점)
-
-static std::string  sekaiMoveZoneAt(const Vector2D& p, PHLMONITOR& mon) {
-    mon = g_pCompositor->getMonitorFromVector(p);
-    if (!mon)
-        return "none";
-    const double x = p.x - mon->m_position.x, y = p.y - mon->m_position.y;
-    const double W = mon->m_size.x, H = mon->m_size.y;
-    const double E = 4;                                  // 가장자리로 치는 두께
-    const double C = std::max(48.0, std::min(W, H) / 8); // 모서리로 치는 길이
-    const bool   L = x <= E, R = x >= W - 1 - E, T = y <= E, B = y >= H - 1 - E;
-    if ((L && y < C) || (T && x < C))
-        return "tl";
-    if ((R && y < C) || (T && x > W - C))
-        return "tr";
-    if ((L && y > H - C) || (B && x < C))
-        return "bl";
-    if ((R && y > H - C) || (B && x > W - C))
-        return "br";
-    if (L)
-        return "left";
-    if (R)
-        return "right";
-    if (T)
-        return "max";
-    return "none";
-}
 
 void sekaiClientMoveStart(PHLWINDOW w) {
     if (!w || sekaiMoving || !sekaiButtonHeld || !g_pInputManager->m_currentlyDraggedWindow.expired())
@@ -145,13 +118,11 @@ void sekaiClientMoveStart(PHLWINDOW w) {
         g_pKeybindManager->m_dispatchers["mouse"]("0movewindow");
         return;
     }
-    sekaiMoving   = true;
-    sekaiMoveWin  = w;
-    sekaiMoveZone = "none";
+    sekaiMoving  = true;
+    sekaiMoveWin = w;
     // SEKAI_CLIENT_MOVE3: 기준점은 누른 자리 — 앱은 커서가 끌기 문턱(GTK 는 몇 px)을 넘은 뒤에야 move 를 청해, 그때의 커서를
     //   기준으로 잡으면 창이 그만큼 덜 따라와 커서가 제목줄의 같은 자리에서 밀려 났다 (hyprbars 막대와 같게)
     g_pLayoutManager->getCurrentLayout()->sekaiSetDragAnchor(sekaiPressXY);
-    g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnapstart", std::format("{:x}", (uintptr_t)w.get())});
 }
 
 #include "../../helpers/time/Time.hpp"
@@ -303,12 +274,16 @@ void CInputManager::sendMotionEventsToFocused() {
 void CInputManager::mouseMoveUnified(uint32_t time, bool refocus, bool mouse) {
     m_lastInputMouse = mouse;
 
-    if (sekaiMoving) { // SEKAI_CLIENT_MOVE — 끄는 중 커서가 닿은 영역 (스냅 미리보기)
-        PHLMONITOR mon;
-        const auto z = sekaiMoveZoneAt(getMouseCoordsInternal(), mon);
-        if (z != sekaiMoveZone) {
-            sekaiMoveZone = z;
-            g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnap", std::format("{},{}", z, mon ? mon->m_name : "")});
+    // SEKAI_DRAG_IPC: 창을 끄는 동안 커서 자리를 셸에 (스냅 영역·레이아웃 바) — 초당 60번까지, 움직였을 때만
+    if (m_dragMode == MBIND_MOVE && !m_currentlyDraggedWindow.expired()) {
+        static Time::steady_tp sekaiLastDragPost;
+        static Vector2D        sekaiLastDragPos{-1, -1};
+        const auto             P   = getMouseCoordsInternal().round();
+        const auto             NOW = Time::steadyNow();
+        if (P != sekaiLastDragPos && NOW - sekaiLastDragPost >= std::chrono::milliseconds(16)) {
+            sekaiLastDragPos  = P;
+            sekaiLastDragPost = NOW;
+            g_pEventManager->postEvent(SHyprIPCEvent{"sekaidrag", std::format("move,{},{}", (int)P.x, (int)P.y)});
         }
     }
 
@@ -758,16 +733,9 @@ static void sekaiStickyClick(); // SEKAI_A11Y_KEYS — 아래 고정 키 상태 
 void CInputManager::onMouseButton(IPointer::SButtonEvent e) {
     // SEKAI_MISCLICK: 창이 그린 제목줄 끌기의 놓기는 훅보다 먼저 — 작업 보기(hyprexpo) 등이 버튼 이벤트를
     //   취소하면 놓기가 사라져 창이 버튼 없이 커서를 따라다녔다
-    if (sekaiMoving && e.state != WL_POINTER_BUTTON_STATE_PRESSED) { // SEKAI_CLIENT_MOVE — 놓음
+    if (sekaiMoving && e.state != WL_POINTER_BUTTON_STATE_PRESSED) { // SEKAI_CLIENT_MOVE — 놓음 (셸에는 changeMouseBindMode 가 알린다)
         sekaiMoving = false;
         g_pKeybindManager->m_dispatchers["mouse"]("0movewindow");
-        PHLMONITOR mon;
-        const auto z = sekaiMoveZoneAt(getMouseCoordsInternal(), mon);
-        if (const auto w = sekaiMoveWin.lock())
-            g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnapdrop", std::format("{},{},{:x}", z, mon ? mon->m_name : "", (uintptr_t)w.get())});
-        else // SEKAI_CLIENT_MOVE2: 끄던 창이 닫혔다 — 셸이 끌기를 끝내게
-            g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnapdrop", "none,,0"});
-        sekaiMoveZone = "none";
     }
 
     EMIT_HOOK_EVENT_CANCELLABLE("mouseButton", e);
@@ -783,10 +751,7 @@ void CInputManager::onMouseButton(IPointer::SButtonEvent e) {
         //   끊김 등). 그대로 두면 Hyprland 가 새 끌기를 모두 조용히 거절해, 다시 로그인할 때까지 창을 옮길 수 없었다
         if (m_currentlyHeldButtons.empty() && (m_dragMode != MBIND_INVALID || !m_currentlyDraggedWindow.expired())) {
             g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
-            if (sekaiMoving) {
-                sekaiMoving = false;
-                g_pEventManager->postEvent(SHyprIPCEvent{"sekaisnapdrop", "none,,0"});
-            }
+            sekaiMoving = false;
         }
         if (m_currentlyHeldButtons.empty())
             sekaiPressXY = getMouseCoordsInternal(); // SEKAI_CLIENT_MOVE3
@@ -1674,10 +1639,7 @@ void CInputManager::onKeyboardKey(const IKeyboard::SKeyEvent& event, SP<IKeyboar
     if (event.keycode == 1 /* KEY_ESC */) {
         if (event.state == WL_KEYBOARD_KEY_STATE_PRESSED && !m_currentlyDraggedWindow.expired() && g_pLayoutManager->getCurrentLayout() &&
             g_pLayoutManager->getCurrentLayout()->sekaiCancelDrag()) {
-            if (sekaiMoving) {
-                sekaiMoving   = false;
-                sekaiMoveZone = "none";
-            }
+            sekaiMoving = false;
             sekaiEatEscUp = true;
             return;
         }
