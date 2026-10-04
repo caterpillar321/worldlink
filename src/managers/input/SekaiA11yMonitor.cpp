@@ -2,6 +2,8 @@
 #include "../../Compositor.hpp"
 #include "../../helpers/time/Time.hpp"
 #include "../../debug/Log.hpp"
+#include "../KeybindManager.hpp"
+#include "../../helpers/Monitor.hpp"
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -19,6 +21,7 @@
 
 namespace SekaiA11y {
     std::optional<uint32_t> g_xkbSkip;
+    std::optional<Vector2D> g_zoomFocus;
 
     namespace {
         struct SConfig {
@@ -137,6 +140,19 @@ namespace SekaiA11y {
     }
 
     void start() {
+        // SEKAI_ZOOM_FOCUS
+        g_pKeybindManager->m_dispatchers["sekaizoomfocus"] = [](std::string args) -> SDispatchResult {
+            std::istringstream ss(args);
+            double             x = 0, y = 0;
+            if (!(ss >> x >> y))
+                g_zoomFocus.reset();
+            else
+                g_zoomFocus = Vector2D{x, y};
+            for (auto const& m : g_pCompositor->m_monitors)
+                g_pCompositor->scheduleFrameForMonitor(m);
+            return {};
+        };
+
         g_listenFD = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
         if (g_listenFD < 0)
             return;

@@ -221,6 +221,12 @@ CInputManager::~CInputManager() {
 void CInputManager::onMouseMoved(IPointer::SMotionEvent e) {
     static auto PNOACCEL = CConfigValue<Hyprlang::INT>("input:force_no_accel");
 
+    if (SekaiA11y::g_zoomFocus) { // SEKAI_ZOOM_FOCUS: 마우스를 움직이면 돋보기는 다시 마우스를 따라간다
+        SekaiA11y::g_zoomFocus.reset();
+        for (auto const& m : g_pCompositor->m_monitors)
+            g_pCompositor->scheduleFrameForMonitor(m);
+    }
+
     Vector2D    delta   = e.delta;
     Vector2D    unaccel = e.unaccel;
 
@@ -262,6 +268,7 @@ void CInputManager::onMouseMoved(IPointer::SMotionEvent e) {
 }
 
 void CInputManager::onMouseWarp(IPointer::SMotionAbsoluteEvent e) {
+    SekaiA11y::g_zoomFocus.reset(); // SEKAI_ZOOM_FOCUS
     g_pPointerManager->warpAbsolute(e.absolute, e.device);
 
     mouseMoveUnified(e.timeMs);
@@ -744,6 +751,8 @@ void CInputManager::mouseMoveUnified(uint32_t time, bool refocus, bool mouse) {
     g_pSeatManager->sendPointerMotion(time, surfaceLocal);
 }
 
+static void sekaiStickyClick(); // SEKAI_A11Y_KEYS — 아래 고정 키 상태 옆에
+
 void CInputManager::onMouseButton(IPointer::SButtonEvent e) {
     // SEKAI_MISCLICK: 창이 그린 제목줄 끌기의 놓기는 훅보다 먼저 — 작업 보기(hyprexpo) 등이 버튼 이벤트를
     //   취소하면 놓기가 사라져 창이 버튼 없이 커서를 따라다녔다
@@ -793,6 +802,9 @@ void CInputManager::onMouseButton(IPointer::SButtonEvent e) {
         case CLICKMODE_KILL: processMouseDownKill(e); break;
         default: break;
     }
+
+    if (e.state == WL_POINTER_BUTTON_STATE_RELEASED)
+        sekaiStickyClick(); // SEKAI_A11Y_KEYS: 걸린 수식 키는 클릭 한 번에도 풀린다 (Ctrl 걸고 클릭 = Ctrl+클릭, 윈도우처럼)
 
     if (m_focusHeldByButtons && m_currentlyHeldButtons.empty() && e.state == WL_POINTER_BUTTON_STATE_RELEASED) {
         if (m_refocusHeldByButtons)
@@ -1649,6 +1661,15 @@ static uint32_t sekaiModOf(SP<IKeyboard> kb, uint32_t keycode) {
 
 static void sekaiStickyPost() {
     g_pEventManager->postEvent(SHyprIPCEvent{"sekaisticky", std::format("{},{}", g_sekaiStickyLatched, g_sekaiStickyLocked)});
+}
+
+static void sekaiStickyClick() {
+    if (!g_sekaiStickyLatched)
+        return;
+    g_sekaiStickyLatched = 0;
+    if (const auto KB = g_pSeatManager->m_keyboard.lock(); KB)
+        g_pInputManager->onKeyboardMod(KB);
+    sekaiStickyPost();
 }
 
 void CInputManager::onKeyboardKey(const IKeyboard::SKeyEvent& event, SP<IKeyboard> pKeyboard) {

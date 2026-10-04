@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <optional>
 #include "../../devices/IKeyboard.hpp"
+#include "../../helpers/math/Math.hpp"
 
 namespace SekaiA11y {
     void start();
@@ -21,4 +22,8 @@ namespace SekaiA11y {
 
     // 가로챈 키는 xkb 상태(Caps Lock 등)도 바꾸지 않는다 — Keyboard.cpp 가 키 이벤트를 보낸 직후 묻는다
     extern std::optional<uint32_t> g_xkbSkip;
+
+    // SEKAI_ZOOM_FOCUS: 돋보기 중심을 키보드 포커스·글자 커서로 (셸이 hyprctl dispatch sekaizoomfocus x y 로 — 전체 화면 좌표).
+    //   마우스를 움직이면 다시 마우스를 따라간다
+    extern std::optional<Vector2D> g_zoomFocus;
 }

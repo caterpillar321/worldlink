@@ -1,3 +1,4 @@
+#include "../managers/input/SekaiA11yMonitor.hpp"
 #include <GLES3/gl32.h>
 #include <hyprgraphics/color/Color.hpp>
 #include <hyprutils/string/String.hpp>
@@ -804,8 +805,9 @@ void CHyprOpenGLImpl::end() {
         CBox monbox = {0, 0, m_renderData.pMonitor->m_transformedSize.x, m_renderData.pMonitor->m_transformedSize.y};
 
         if (m_renderData.mouseZoomFactor != 1.f) {
+            // SEKAI_ZOOM_FOCUS: 셸이 알려 준 키보드 포커스 자리가 있으면 그쪽을 (마우스를 움직이면 풀린다)
             const auto ZOOMCENTER = m_renderData.mouseZoomUseMouse ?
-                (g_pInputManager->getMouseCoordsInternal() - m_renderData.pMonitor->m_position) * m_renderData.pMonitor->m_scale :
+                (SekaiA11y::g_zoomFocus.value_or(g_pInputManager->getMouseCoordsInternal()) - m_renderData.pMonitor->m_position) * m_renderData.pMonitor->m_scale :
                 m_renderData.pMonitor->m_transformedSize / 2.f;
 
             monbox.translate(-ZOOMCENTER).scale(m_renderData.mouseZoomFactor).translate(*PZOOMRIGID ? m_renderData.pMonitor->m_transformedSize / 2.0 : ZOOMCENTER);
