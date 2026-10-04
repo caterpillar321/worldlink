@@ -1146,9 +1146,15 @@ bool IHyprLayout::updateDragWindow() {
         // SEKAI_DRAG_RESTORE: 윈도우처럼 — 가로는 잡은 비율 그대로, 세로는 창 위쪽에서 커서까지 그대로
         //   (원래는 창 가운데를 커서에 맞춰, 큰 창은 제목줄이 커서보다 한참 위·화면 밖으로 나갔다)
         const auto NEWSIZE = DRAGGINGWINDOW->m_realSize->goal();
+        // SEKAI_MAXIMIZE2: 잡은 자리는 누른 자리 — 문턱을 넘는 순간의 커서로 재면, 그사이 움직인 만큼(빠르게 끌면 수십 px)
+        //   커서가 제목줄 밖(창 안)으로 밀렸다. 누른 자리가 이 창의 제목줄·창 안일 때만
+        const Vector2D GRAB = (g_pInputManager->m_dragThresholdReached && m_beginDragXY.x >= SEKAIMAXBOX.x && m_beginDragXY.x <= SEKAIMAXBOX.x + SEKAIMAXBOX.w &&
+                               m_beginDragXY.y >= SEKAIMAXBOX.y - 80 && m_beginDragXY.y <= SEKAIMAXBOX.y + SEKAIMAXBOX.h) ?
+            m_beginDragXY :
+            MOUSECOORDS;
         if (SEKAIMAXBOX.w > 0 && SEKAIMAXBOX.h > 0) {
-            const double RELX = std::clamp((MOUSECOORDS.x - SEKAIMAXBOX.x) / SEKAIMAXBOX.w, 0.0, 1.0);
-            double       offY = MOUSECOORDS.y - SEKAIMAXBOX.y; // 제목줄을 잡았으면 음수 (창 위쪽보다 위)
+            const double RELX = std::clamp((GRAB.x - SEKAIMAXBOX.x) / SEKAIMAXBOX.w, 0.0, 1.0);
+            double       offY = GRAB.y - SEKAIMAXBOX.y; // 제목줄을 잡았으면 음수 (창 위쪽보다 위)
             if (offY > NEWSIZE.y)
                 offY = NEWSIZE.y / 2.0; // 창 아래쪽을 잡고 끌었다 (Super+끌기) — 줄어든 창 안에 커서가 오게
             *DRAGGINGWINDOW->m_realPosition = Vector2D(MOUSECOORDS.x - RELX * NEWSIZE.x, MOUSECOORDS.y - offY).round();
