@@ -404,6 +404,15 @@ class CWindow {
     //   원래 데스크톱을 잃었다). 딸린 창(대화상자)도 함께, 되살리면 부모까지
     bool                       m_sekaiMinimized = false;
     void                       sekaiSetMinimized(bool on);
+    // SEKAI_MAXIMIZE2: 최대화도 창의 상태 — 작업 공간의 전체 화면 장치(FSMODE_MAXIMIZED)를 쓰지 않는다. 한 데스크톱에 여럿,
+    //   뒤 창은 그대로 그리고 입력도 쌓임 순서대로. 진짜 전체 화면(F11·게임)만 원래 장치. 작업 영역에 맞추고 모서리·테두리·그림자 없이
+    bool                       m_sekaiMaximized = false;
+    Vector2D                   m_sekaiRestorePosition, m_sekaiRestoreSize; // 복원할 자리 (최대화하기 전)
+    bool                       m_sekaiHasRestore = false;
+    void                       sekaiSetMaximized(bool on);
+    CBox                       sekaiMaximizedBox();   // 이 창의 모니터 작업 영역 — 제목줄 몫을 뺀 창 내용 자리
+    void                       sekaiRefitMaximized(); // 최대화 창을 작업 영역에 다시 맞춘다 (작업 표시줄·모니터가 바뀌었을 때)
+    void                       sekaiSendMaximizedState(); // 앱(xdg·X11)에 최대화 상태를 알린다
     PHLWINDOW                  sekaiModalChild();       // SEKAI_MODAL: 이 창을 막고 있는 모달 대화상자 (xdg-dialog modal, 가장 안쪽)
     Vector2D                   realToReportSize();
     Vector2D                   realToReportPosition();

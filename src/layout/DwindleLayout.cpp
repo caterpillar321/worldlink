@@ -528,6 +528,11 @@ void CHyprDwindleLayout::calculateWorkspace(const PHLWORKSPACE& pWorkspace) {
     if (!PMONITOR)
         return;
 
+    // SEKAI_MAXIMIZE2: 최대화 창을 작업 영역에 다시 맞춘다 (작업 표시줄·모니터 모드·배율이 바뀌면 여기로 온다)
+    for (auto const& w : g_pCompositor->m_windows)
+        if (w->m_workspace == pWorkspace && w->m_sekaiMaximized)
+            w->sekaiRefitMaximized();
+
     if (pWorkspace->m_hasFullscreenWindow) {
         // massive hack from the fullscreen func
         // SEKAI_MULTIMAX: 최대화·전체 화면 창이 여럿일 수 있다 — 모두 맞춘다 (전엔 맨 위 창만)

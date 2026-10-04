@@ -13,6 +13,7 @@ struct SHyprButton {
     float        size    = 10;
     std::string  icon    = "";
     SP<CTexture> iconTex = makeShared<CTexture>();
+    SP<CTexture> iconTex2 = makeShared<CTexture>(); // SEKAI_MAXIMIZE2: 최대화한 창의 최대화 단추 = 복원 모양
 };
 
 class CHyprBar;

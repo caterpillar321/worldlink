@@ -80,12 +80,10 @@ CForeignToplevelHandleWlr::CForeignToplevelHandleWlr(SP<CZwlrForeignToplevelHand
         if UNLIKELY (PWINDOW->m_suppressedEvents & SUPPRESS_MAXIMIZE)
             return;
 
-        if UNLIKELY (!PWINDOW->m_isMapped) {
-            PWINDOW->m_wantsInitialFullscreen = true;
-            return;
-        }
+        if UNLIKELY (!PWINDOW->m_isMapped)
+            return; // SEKAI_MAXIMIZE2: 원본은 여기서 전체 화면으로 열게 했다 (최대화가 아니라)
 
-        g_pCompositor->changeWindowFullscreenModeClient(PWINDOW, FSMODE_MAXIMIZED, true);
+        PWINDOW->sekaiSetMaximized(true); // SEKAI_MAXIMIZE2
     });
 
     m_resource->setUnsetMaximized([this](CZwlrForeignToplevelHandleV1* p) {
@@ -97,7 +95,7 @@ CForeignToplevelHandleWlr::CForeignToplevelHandleWlr(SP<CZwlrForeignToplevelHand
         if UNLIKELY (PWINDOW->m_suppressedEvents & SUPPRESS_MAXIMIZE)
             return;
 
-        g_pCompositor->changeWindowFullscreenModeClient(PWINDOW, FSMODE_MAXIMIZED, false);
+        PWINDOW->sekaiSetMaximized(false); // SEKAI_MAXIMIZE2
     });
 
     m_resource->setSetMinimized([this](CZwlrForeignToplevelHandleV1* p) {
@@ -189,6 +187,10 @@ void CForeignToplevelHandleWlr::sendState() {
             *p = ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_FULLSCREEN;
         else
             *p = ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MAXIMIZED;
+    }
+    if (PWINDOW->m_sekaiMaximized) { // SEKAI_MAXIMIZE2: 최대화는 창의 상태 (전체 화면 중에도 둘 다)
+        auto p = (uint32_t*)wl_array_add(&state, sizeof(uint32_t));
+        *p     = ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MAXIMIZED;
     }
 
     m_resource->sendState(&state);

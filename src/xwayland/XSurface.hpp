@@ -98,6 +98,7 @@ class CXWaylandSurface {
     void                              configure(const CBox& box);
     void                              activate(bool activate);
     void                              setFullscreen(bool fs);
+    void                              setMaximized(bool mx); // SEKAI_MAXIMIZE2: _NET_WM_STATE_MAXIMIZED_* 를 알린다 (전엔 아무도 쓰지 않았다)
     void                              setMinimized(bool mz);
     void                              restackToTop();
     void                              close();

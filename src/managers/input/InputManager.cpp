@@ -656,7 +656,7 @@ void CInputManager::mouseMoveUnified(uint32_t time, bool refocus, bool mouse) {
     if (pFoundWindow) {
         // change cursor icon if hovering over border
         if (*PRESIZEONBORDER && *PRESIZECURSORICON) {
-            if (!pFoundWindow->isFullscreen() && !pFoundWindow->hasPopupAt(mouseCoords)) {
+            if (!pFoundWindow->isFullscreen() && !pFoundWindow->m_sekaiMaximized && !pFoundWindow->hasPopupAt(mouseCoords)) { // SEKAI_MAXIMIZE2
                 setCursorIconOnBorder(pFoundWindow);
             } else if (m_borderIconDirection != BORDERICON_NONE) {
                 unsetCursorImage();
@@ -914,7 +914,7 @@ void CInputManager::processMouseDownNormal(const IPointer::SButtonEvent& e) {
     }
 
     // SEKAI_BORDER_GRAB: 테두리를 누르면 크기 조절 — 제목줄 맨 위도 위쪽 가장자리라 제목줄보다 먼저 본다
-    if (*PRESIZEONBORDER && w && !w->isFullscreen() && !w->isX11OverrideRedirect() && !g_pSessionLockManager->isSessionLocked() && !m_lastFocusOnLS &&
+    if (*PRESIZEONBORDER && w && !w->isFullscreen() && !w->m_sekaiMaximized && !w->isX11OverrideRedirect() && !g_pSessionLockManager->isSessionLocked() && !m_lastFocusOnLS &&
         e.state == WL_POINTER_BUTTON_STATE_PRESSED && !w->hasPopupAt(mouseCoords) && (g_pSeatManager->m_mouse.expired() || !isConstrained()) /* SEKAI_BORDER_FIX */) {
         const int EDGE = sekaiBorderAt(w, mouseCoords, BORDER_GRAB_AREA);
         if (EDGE) {

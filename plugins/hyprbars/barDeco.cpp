@@ -148,7 +148,7 @@ static int sekaiBarScreenEdges(PHLWINDOW w) {
 //   맨 위 4px 이 창 테두리로 넘어가는 창(크기 조절이 되고 화면 맨 위에 붙지 않은 창)이면 그 4px 은 뺀다 (onMouseButton 과 같은 판정)
 static bool sekaiInButton(PHLWINDOW w, const Vector2D& c, const Vector2D& currentPos, double size, double pad, double barH) {
     static auto* const PSEKAIRESIZE = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "general:resize_on_border")->getDataStaticPtr();
-    const bool         TOPBORDER    = **PSEKAIRESIZE && w && !w->isFullscreen() && !w->isX11OverrideRedirect() && !(sekaiBarScreenEdges(w) & 4);
+    const bool         TOPBORDER    = **PSEKAIRESIZE && w && !w->isFullscreen() && !w->m_sekaiMaximized && !w->isX11OverrideRedirect() && !(sekaiBarScreenEdges(w) & 4);
     const double       X0 = currentPos.x + pad / 2.0, X1 = currentPos.x + pad + size + pad / 2.0;
     return c.x >= X0 && c.x < X1 && c.y >= (TOPBORDER ? 4 : 0) && c.y < barH;
 }
@@ -200,7 +200,7 @@ void CHyprBar::onMouseButton(SCallbackInfo& info, IPointer::SButtonEvent e) {
     static auto* const PSEKAIRESIZE = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "general:resize_on_border")->getDataStaticPtr();
     const auto         SEKAI_C      = cursorRelativeToBar();
     const auto         SEKAI_W      = m_pWindow.lock();
-    if (**PSEKAIRESIZE && SEKAI_W && !SEKAI_W->isFullscreen() && !SEKAI_W->isX11OverrideRedirect()) {
+    if (**PSEKAIRESIZE && SEKAI_W && !SEKAI_W->isFullscreen() && !SEKAI_W->m_sekaiMaximized && !SEKAI_W->isX11OverrideRedirect()) { // SEKAI_MAXIMIZE2
         // SEKAI_BORDER_EDGE: 화면 끝(모니터 끝·작업 표시줄 끝)에 붙은 변은 넘기지 않는다 — 제목줄 몫
         const auto SEKAI_B = assignedBoxGlobal();
         const int  SEKAI_E = sekaiBarScreenEdges(SEKAI_W); // SEKAI_BORDER_EDGE2: Hyprland 와 같은 상자로
@@ -315,7 +315,11 @@ void CHyprBar::handleDownEvent(SCallbackInfo& info, std::optional<ITouch::SDownE
 
     if (!ON_DOUBLE_CLICK.empty() && !(PWINDOW && (PWINDOW->parent() || PWINDOW->sekaiFixedSize())) /* SEKAI_DIALOG_BUTTONS · SEKAI_FIXED_SIZE */ &&
         std::chrono::duration_cast<std::chrono::milliseconds>(Time::steadyNow() - m_lastMouseDown).count() < 400 /* Arbitrary delay I found suitable */) {
-        g_pKeybindManager->m_dispatchers["exec"](ON_DOUBLE_CLICK);
+        // SEKAI_MAXIMIZE2: 두 번 누르기 = 이 창의 최대화 켜고 끄기 (exec 로 hyprctl 을 띄우면 도착했을 때의 초점 창에 먹었다)
+        if (PWINDOW && (ON_DOUBLE_CLICK.find("fullscreen 1") != std::string::npos || ON_DOUBLE_CLICK.find("sekaimaximize") != std::string::npos))
+            g_pKeybindManager->m_dispatchers["sekaimaximize"](std::format("toggle,address:0x{:x}", (uintptr_t)PWINDOW.get()));
+        else
+            g_pKeybindManager->m_dispatchers["exec"](ON_DOUBLE_CLICK);
         m_bDragPending = false;
     } else {
         m_lastMouseDown = Time::steadyNow();
@@ -433,11 +437,8 @@ void CHyprBar::sekaiRunButton(int idx) {
             g_pKeybindManager->m_dispatchers["closewindow"](ADDR);
         else if (b.icon == "sekai:min")
             g_pKeybindManager->m_dispatchers["sekaiminimize"]("on," + ADDR); // SEKAI_MINIMIZE2
-        else {
-            g_pCompositor->focusWindow(W); // fullscreen 은 초점 창에 걸린다 — 방금(누를 때) 준 초점을 확실히
-            if (g_pCompositor->m_lastWindow.lock() == W)
-                g_pKeybindManager->m_dispatchers["fullscreen"]("1");
-        }
+        else
+            g_pKeybindManager->m_dispatchers["sekaimaximize"]("toggle," + ADDR); // SEKAI_MAXIMIZE2: 이 창을 집어서 (초점과 상관없이)
         return;
     }
     g_pKeybindManager->m_dispatchers["exec"](b.cmd);
@@ -454,7 +455,7 @@ void CHyprBar::renderText(SP<CTexture> out, const std::string& text, const CHypr
     cairo_restore(CAIRO);
 
     // SEKAI_VECTOR_CAPTION_ICONS — 창 조작 버튼은 글꼴이 아니라 선으로 그린다
-    if (text == "sekai:min" || text == "sekai:max" || text == "sekai:close") {
+    if (text == "sekai:min" || text == "sekai:max" || text == "sekai:restore" || text == "sekai:close") {
         const double S  = std::round(std::min(bufferSize.x, bufferSize.y) * 0.625); // 아이콘 한 변
         const double LW = std::max(1.0, std::round((double)scale));                // 선 굵기 (배율 1 = 1px)
         const double X0 = std::round((bufferSize.x - S) / 2.0);
@@ -469,6 +470,14 @@ void CHyprBar::renderText(SP<CTexture> out, const std::string& text, const CHypr
             cairo_line_to(CAIRO, X0 + S, y);
         } else if (text == "sekai:max") {
             cairo_rectangle(CAIRO, X0 + HP, Y0 + HP, S - LW, S - LW);
+        } else if (text == "sekai:restore") { // SEKAI_MAXIMIZE2: 겹친 두 네모 (윈도우의 "이전 크기로 복원")
+            const double O = std::round(S * 0.22);
+            cairo_rectangle(CAIRO, X0 + HP, Y0 + O + HP, S - O - LW, S - O - LW); // 앞 네모
+            cairo_move_to(CAIRO, X0 + O + HP, Y0 + O);                            // 뒤 네모의 위·오른쪽 변
+            cairo_line_to(CAIRO, X0 + O + HP, Y0 + HP);
+            cairo_line_to(CAIRO, X0 + S - HP, Y0 + HP);
+            cairo_line_to(CAIRO, X0 + S - HP, Y0 + S - O - HP);
+            cairo_line_to(CAIRO, X0 + S - O, Y0 + S - O - HP);
         } else {
             cairo_set_line_cap(CAIRO, CAIRO_LINE_CAP_ROUND);
             cairo_move_to(CAIRO, X0 + HP, Y0 + HP);
@@ -674,6 +683,8 @@ void CHyprBar::renderBarButtons(const Vector2D& bufferSize, const float scale) {
             color = m_bWindowHasFocus ? color : CHyprColor(**PINACTIVECOLOR);
             if (button.userfg && button.iconTex->m_texID != 0)
                 button.iconTex->destroyTexture();
+            if (button.userfg && button.iconTex2->m_texID != 0)
+                button.iconTex2->destroyTexture();
         }
 
         cairo_set_source_rgba(CAIRO, color.r, color.g, color.b, color.a);
@@ -730,15 +741,18 @@ void CHyprBar::renderBarButtonsText(CBox* barBox, const float scale, const float
         bool       hovering   = sekaiInButton(m_pWindow.lock(), COORDS, currentPos, button.size, **PBARBUTTONPADDING, BARBUF.y); // SEKAI_BUTTON_SLOT
         noScaleOffset += **PBARBUTTONPADDING + button.size;
 
-        if (button.iconTex->m_texID == 0 /* icon is not rendered */ && !button.icon.empty()) {
+        // SEKAI_MAXIMIZE2: 최대화한 창은 최대화 단추를 복원 모양으로
+        const bool SEKAIRESTORE = button.icon == "sekai:max" && m_pWindow.lock() && m_pWindow.lock()->m_sekaiMaximized;
+        const auto ICONTEX      = SEKAIRESTORE ? button.iconTex2 : button.iconTex;
+        if (ICONTEX->m_texID == 0 /* icon is not rendered */ && !button.icon.empty()) {
             // render icon
             const Vector2D BUFSIZE = {scaledButtonSize, scaledButtonSize};
             auto           fgcol   = button.userfg ? button.fgcol : (button.bgcol.r + button.bgcol.g + button.bgcol.b < 1) ? CHyprColor(0xFFFFFFFF) : CHyprColor(0xFF000000);
 
-            renderText(button.iconTex, button.icon, fgcol, BUFSIZE, scale, button.size * 0.62);
+            renderText(ICONTEX, SEKAIRESTORE ? std::string{"sekai:restore"} : button.icon, fgcol, BUFSIZE, scale, button.size * 0.62);
         }
 
-        if (button.iconTex->m_texID == 0)
+        if (ICONTEX->m_texID == 0)
             continue;
 
         CBox pos = {barBox->x + (BUTTONSRIGHT ? barBox->width - offset - scaledButtonSize : offset), barBox->y + (barBox->height - scaledButtonSize) / 2.0, scaledButtonSize,
@@ -755,7 +769,7 @@ void CHyprBar::renderBarButtonsText(CBox* barBox, const float scale, const float
         }
 
         if (!**PICONONHOVER || (**PICONONHOVER && m_iButtonHoverState > 0))
-            g_pHyprOpenGL->renderTexture(button.iconTex, pos, a);
+            g_pHyprOpenGL->renderTexture(ICONTEX, pos, a);
         offset += scaledButtonsPad + scaledButtonSize;
 
         bool currentBit = (m_iButtonHoverState & (1 << i)) != 0;

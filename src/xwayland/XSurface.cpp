@@ -208,6 +208,11 @@ void CXWaylandSurface::setMinimized(bool mz) {
     g_pXWayland->m_wm->sendState(m_self.lock());
 }
 
+void CXWaylandSurface::setMaximized(bool mx) {
+    m_maximized = mx;
+    g_pXWayland->m_wm->sendState(m_self.lock());
+}
+
 void CXWaylandSurface::restackToTop() {
     uint32_t values[1] = {XCB_STACK_MODE_ABOVE};
 
@@ -299,6 +304,10 @@ void CXWaylandSurface::setFullscreen(bool fs) {
 }
 
 void CXWaylandSurface::setMinimized(bool mz) {
+    ;
+}
+
+void CXWaylandSurface::setMaximized(bool mx) {
     ;
 }
 

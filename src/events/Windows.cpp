@@ -724,8 +724,9 @@ void Events::listener_mapWindow(void* owner, void* data) {
     g_pLayoutManager->getCurrentLayout()->recalculateWindow(PWINDOW);
 
     // SEKAI_FIT_NEW: 떠 있는 새 창을 작업 영역 안으로 (제목줄이 붙은 뒤 — 그 몫까지)
-    if (PWINDOW->m_isFloating && !PWINDOW->isFullscreen() && !PWINDOW->isX11OverrideRedirect() && !PWINDOW->m_X11DoesntWantBorders)
+    if (PWINDOW->m_isFloating && !PWINDOW->isFullscreen() && !PWINDOW->m_sekaiMaximized && !PWINDOW->isX11OverrideRedirect() && !PWINDOW->m_X11DoesntWantBorders)
         sekaiFitNewWindow(PWINDOW);
+    PWINDOW->sekaiRefitMaximized(); // SEKAI_MAXIMIZE2: 최대화로 연 창 — 제목줄이 붙은 뒤에 그 몫을 빼고 다시
 
     // do animations
     g_pAnimationManager->onWindowPostCreateClose(PWINDOW, false);
@@ -925,7 +926,7 @@ void Events::listener_commitWindow(void* owner, void* data) {
 
     PWINDOW->m_reportedSize = PWINDOW->m_pendingReportedSize; // apply pending size. We pinged, the window ponged.
 
-    if (!PWINDOW->m_isX11 && !PWINDOW->isFullscreen() && PWINDOW->m_isFloating) {
+    if (!PWINDOW->m_isX11 && !PWINDOW->isFullscreen() && !PWINDOW->m_sekaiMaximized && PWINDOW->m_isFloating) { // SEKAI_MAXIMIZE2
         const auto MINSIZE = PWINDOW->m_xdgSurface->m_toplevel->layoutMinSize();
         const auto MAXSIZE = PWINDOW->m_xdgSurface->m_toplevel->layoutMaxSize();
 
@@ -1045,7 +1046,7 @@ void Events::listener_unmanagedSetGeometry(void* owner, void* data) {
     else
         PWINDOW->setHidden(true);
 
-    if (PWINDOW->isFullscreen() || !PWINDOW->m_isFloating) {
+    if (PWINDOW->isFullscreen() || PWINDOW->m_sekaiMaximized || !PWINDOW->m_isFloating) { // SEKAI_MAXIMIZE2: X11 앱이 최대화 창을 옮기지 못하게
         PWINDOW->sendWindowSize(true);
         g_pHyprRenderer->damageWindow(PWINDOW);
         return;

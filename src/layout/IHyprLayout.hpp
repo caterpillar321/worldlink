@@ -231,7 +231,10 @@ class IHyprLayout {
     int          m_mouseMoveEventCount;
     bool         m_sekaiForceDragUpdate = false; // SEKAI_DRAG_FINAL: 놓는 순간엔 건너뛰지 않고 마지막 자리를 반영
     Vector2D     m_sekaiCancelPos, m_sekaiCancelSize;   // SEKAI_DRAG_CANCEL: 끌기 전 자리·크기
-    bool         m_sekaiCancelFS       = false;         //   끌기 전에 최대화였나
+    bool         m_sekaiCancelFS       = false;         //   끌기 전에 전체 화면이었나
+    bool         m_sekaiCancelMax      = false;         //   SEKAI_MAXIMIZE2: 끌기 전에 최대화였나 (창의 상태)
+    Vector2D     m_sekaiCancelRestorePos, m_sekaiCancelRestoreSize; //   그 최대화의 "복원할 자리"
+    bool         m_sekaiCancelHasRestore = false;
     Vector2D     m_sekaiCancelFloatPos, m_sekaiCancelFloatSize; //   그때의 "복원할 자리" (최대화였을 때)
     bool         m_sekaiCancelling     = false;
     bool         m_sekaiDragCancelled  = false;         //   이번 끌기는 취소됐다 (놓을 때 스냅하지 않게 — hyprbars·앱 제목줄 끌기가 본다)

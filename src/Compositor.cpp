@@ -2381,14 +2381,24 @@ void CCompositor::setWindowFullscreenState(const PHLWINDOW PWINDOW, SFullscreenS
     const auto            PWORKSPACE = PWINDOW->m_workspace;
 
     const eFullscreenMode CURRENT_EFFECTIVE_MODE = (eFullscreenMode)std::bit_floor((uint8_t)PWINDOW->m_fullscreenState.internal);
-    const eFullscreenMode EFFECTIVE_MODE         = (eFullscreenMode)std::bit_floor((uint8_t)state.internal);
+    eFullscreenMode       EFFECTIVE_MODE         = (eFullscreenMode)std::bit_floor((uint8_t)state.internal); // SEKAI_MAXIMIZE2: 아래에서 바뀔 수 있다
 
-    // SEKAI_FIXED_SIZE: 크기를 바꿀 수 없는 창은 최대화하지 않는다 (단추·두 번 누르기·Win+↑·앱의 요청 모두 여기로 온다)
-    if (EFFECTIVE_MODE == FSMODE_MAXIMIZED && CURRENT_EFFECTIVE_MODE == FSMODE_NONE && PWINDOW->sekaiFixedSize()) {
-        Debug::log(LOG, "[sekai] 크기 고정 창은 최대화하지 않는다: {}", PWINDOW);
-        if (PWINDOW->m_xdgSurface && PWINDOW->m_xdgSurface->m_toplevel)
-            PWINDOW->m_xdgSurface->m_toplevel->setMaximized(false); // 요청한 앱에 "안 됐다"고 알린다
-        return;
+    // SEKAI_MAXIMIZE2: 최대화는 창의 상태 (sekaiSetMaximized) — 전체 화면 장치로 가지 않는다. fullscreen 1·fullscreenstate·
+    //   앱의 요청·창 규칙·맵 때의 요청이 모두 여기를 지나므로 여기서 가른다. 진짜 전체 화면(비트 FULLSCREEN)만 아래로
+    if (PWINDOW->m_isFloating && !(state.internal & FSMODE_FULLSCREEN)) {
+        const bool WANTMAX = state.internal & FSMODE_MAXIMIZED;
+        if (CURRENT_EFFECTIVE_MODE == FSMODE_FULLSCREEN) {
+            // 전체 화면 끄기 — 최대화했던 창은 최대화로 돌아간다 (F11 을 다시 눌렀을 때). 최대화로 끄라면 표시를 먼저
+            //   정해 두어 전체 화면이 끝날 때 그 자리로 간다
+            if (WANTMAX)
+                PWINDOW->sekaiSetMaximized(true);
+            state.internal = FSMODE_NONE;
+            state.client   = FSMODE_NONE;
+            EFFECTIVE_MODE = FSMODE_NONE;
+        } else {
+            PWINDOW->sekaiSetMaximized(WANTMAX);
+            return;
+        }
     }
 
     if (PWINDOW->m_isFloating && CURRENT_EFFECTIVE_MODE == FSMODE_NONE && EFFECTIVE_MODE != FSMODE_NONE)
@@ -2418,8 +2428,8 @@ void CCompositor::setWindowFullscreenState(const PHLWINDOW PWINDOW, SFullscreenS
     PWINDOW->m_fullscreenState.client = state.client;
     g_pXWaylandManager->setWindowFullscreen(PWINDOW, state.client & FSMODE_FULLSCREEN);
     // SEKAI_TRUE_MAXIMIZED: 앱에 알리는 최대화 상태를 실제와 같게 (크롬의 최대화·복원 단추가 맞게 움직인다)
-    if (PWINDOW->m_xdgSurface && PWINDOW->m_xdgSurface->m_toplevel)
-        PWINDOW->m_xdgSurface->m_toplevel->setMaximized(state.client & FSMODE_MAXIMIZED);
+    //   SEKAI_MAXIMIZE2: 최대화는 창의 상태에서 (전체 화면을 오가도 그대로)
+    PWINDOW->sekaiSendMaximizedState();
 
     if (!CHANGEINTERNAL) {
         PWINDOW->updateDynamicRules();
@@ -2431,6 +2441,8 @@ void CCompositor::setWindowFullscreenState(const PHLWINDOW PWINDOW, SFullscreenS
     g_pLayoutManager->getCurrentLayout()->fullscreenRequestForWindow(PWINDOW, CURRENT_EFFECTIVE_MODE, EFFECTIVE_MODE);
 
     PWINDOW->m_fullscreenState.internal = state.internal;
+    if (EFFECTIVE_MODE == FSMODE_NONE)
+        PWINDOW->sekaiRefitMaximized(); // SEKAI_MAXIMIZE2: 전체 화면 동안 작업 영역이 바뀌었을 수 있다
     sekaiFullscreenSync(PWORKSPACE); // SEKAI_MULTIMAX: 데스크톱 상태는 맨 위 최대화 창에서 (다른 최대화 창이 남아 있을 수 있다)
 
     g_pEventManager->postEvent(SHyprIPCEvent{.event = "fullscreen", .data = std::to_string((int)EFFECTIVE_MODE != FSMODE_NONE)});
@@ -2878,6 +2890,7 @@ void CCompositor::moveWindowToWorkspaceSafe(PHLWINDOW pWindow, PHLWORKSPACE pWor
         pWindow->m_movingFromWorkspaceAlpha->setValueAndWarp(0.F);
         *pWindow->m_movingFromWorkspaceAlpha = 1.F;
     }
+    pWindow->sekaiRefitMaximized(); // SEKAI_MAXIMIZE2: 다른 모니터로 옮긴 최대화 창은 그 작업 영역에
     // SEKAI_DIALOG_FOLLOW: 딸린 창(대화상자 — parent 가 이 창인 창)도 같은 데스크톱으로. 부모를 최소화(special:min)하면
     //   "저장할까요?" 같은 대화상자만 바탕화면에 홀로 남았다 (윈도우는 함께 숨긴다). 되살릴 때도 함께 돌아온다
     std::vector<PHLWINDOW> sekaiChildren;

@@ -254,6 +254,10 @@ void IHyprLayout::onBeginDragWindow() {
     m_sekaiCancelPos     = DRAGGINGWINDOW->m_realPosition->goal();
     m_sekaiCancelSize    = DRAGGINGWINDOW->m_realSize->goal();
     m_sekaiCancelFS      = DRAGGINGWINDOW->isFullscreen();
+    m_sekaiCancelMax         = DRAGGINGWINDOW->m_sekaiMaximized; // SEKAI_MAXIMIZE2
+    m_sekaiCancelRestorePos  = DRAGGINGWINDOW->m_sekaiRestorePosition;
+    m_sekaiCancelRestoreSize = DRAGGINGWINDOW->m_sekaiRestoreSize;
+    m_sekaiCancelHasRestore  = DRAGGINGWINDOW->m_sekaiHasRestore;
     m_sekaiCancelFloatPos  = DRAGGINGWINDOW->m_lastFloatingPosition;
     m_sekaiCancelFloatSize = DRAGGINGWINDOW->m_lastFloatingSize;
     m_sekaiDragCancelled = false;
@@ -355,7 +359,7 @@ static void sekaiKeepTitleReachable(PHLWINDOW w) {
 
 void IHyprLayout::sekaiSetDragAnchor(const Vector2D& pos) {
     const auto W = g_pInputManager->m_currentlyDraggedWindow.lock();
-    if (!W || W->isFullscreen())
+    if (!W || W->isFullscreen() || W->m_sekaiMaximized) // SEKAI_MAXIMIZE2
         return;
     m_beginDragXY = pos;
     m_lastDragXY  = pos;
@@ -382,7 +386,12 @@ void IHyprLayout::onEndDragWindow() {
         g_pInputManager->unsetCursorImage();
         g_pInputManager->m_currentlyDraggedWindow.reset();
         g_pInputManager->m_wasDraggingWindow = true;
-        if (m_sekaiCancelFS) {
+        if (m_sekaiCancelMax && !m_sekaiCancelFS) { // SEKAI_MAXIMIZE2: 최대화로 되돌리고, 복원할 자리도 끌기 전 그대로
+            DRAGGINGWINDOW->sekaiSetMaximized(true);
+            DRAGGINGWINDOW->m_sekaiRestorePosition = m_sekaiCancelRestorePos;
+            DRAGGINGWINDOW->m_sekaiRestoreSize     = m_sekaiCancelRestoreSize;
+            DRAGGINGWINDOW->m_sekaiHasRestore      = m_sekaiCancelHasRestore;
+        } else if (m_sekaiCancelFS) {
             if (!DRAGGINGWINDOW->isFullscreen())
                 g_pCompositor->setWindowFullscreenInternal(DRAGGINGWINDOW, FSMODE_MAXIMIZED);
             // 다시 최대화하면 지금(끌던) 자리가 "복원할 자리"로 적힌다 — 최대화하기 전 자리로 되돌린다
@@ -412,7 +421,7 @@ void IHyprLayout::onEndDragWindow() {
     m_sekaiForceDragUpdate = true;
     onMouseMove(g_pInputManager->getMouseCoordsInternal());
     m_sekaiForceDragUpdate = false;
-    if (g_pInputManager->m_dragMode == MBIND_MOVE && DRAGGINGWINDOW->m_isFloating && !DRAGGINGWINDOW->isFullscreen())
+    if (g_pInputManager->m_dragMode == MBIND_MOVE && DRAGGINGWINDOW->m_isFloating && !DRAGGINGWINDOW->isFullscreen() && !DRAGGINGWINDOW->m_sekaiMaximized)
         sekaiKeepTitleReachable(DRAGGINGWINDOW);
 
     g_pInputManager->unsetCursorImage();
@@ -676,7 +685,7 @@ void IHyprLayout::onMouseMove(const Vector2D& mousePos) {
         //   문턱(5px)+첫 움직임만큼 덜 따라왔다 (끌 때마다 커서가 제목줄 아래로 밀려 나갔다, 크기 조절은 모자란 채 끝났다).
         //   최대화를 풀며 창을 커서에 다시 맞추는 때(SEKAI_DRAG_RESTORE)는 그 자리가 기준이다
         const auto SEKAIPRESS = m_beginDragXY;
-        const bool SEKAIWASFS = DRAGGINGWINDOW->isFullscreen();
+        const bool SEKAIWASFS = DRAGGINGWINDOW->isFullscreen() || DRAGGINGWINDOW->m_sekaiMaximized; // SEKAI_MAXIMIZE2
         if (updateDragWindow())
             return;
         if (!SEKAIWASFS) {
@@ -1108,6 +1117,7 @@ Vector2D IHyprLayout::predictSizeForNewWindow(PHLWINDOW pWindow) {
 bool IHyprLayout::updateDragWindow() {
     const auto DRAGGINGWINDOW = g_pInputManager->m_currentlyDraggedWindow.lock();
     const bool WAS_FULLSCREEN = DRAGGINGWINDOW->isFullscreen();
+    const bool WAS_MAX        = DRAGGINGWINDOW->m_sekaiMaximized && !WAS_FULLSCREEN; // SEKAI_MAXIMIZE2: 최대화(창의 상태)
     // SEKAI_DRAG_RESTORE: 최대화를 풀기 전의 자리 — 커서가 제목줄의 어디를 잡았는지
     const CBox SEKAIMAXBOX = {DRAGGINGWINDOW->m_realPosition->goal(), DRAGGINGWINDOW->m_realSize->goal()};
 
@@ -1116,6 +1126,8 @@ bool IHyprLayout::updateDragWindow() {
             Debug::log(LOG, "Dragging a fullscreen window");
             g_pCompositor->setWindowFullscreenInternal(DRAGGINGWINDOW, FSMODE_NONE);
         }
+        if (WAS_MAX) // SEKAI_MAXIMIZE2: 끌면 복원 (윈도우처럼) — 아래에서 잡은 자리에 맞춘다
+            DRAGGINGWINDOW->sekaiSetMaximized(false);
 
         const auto PWORKSPACE = DRAGGINGWINDOW->m_workspace;
 
@@ -1129,7 +1141,7 @@ bool IHyprLayout::updateDragWindow() {
     DRAGGINGWINDOW->m_draggingTiled   = false;
     m_draggingWindowOriginalFloatSize = DRAGGINGWINDOW->m_lastFloatingSize;
 
-    if (WAS_FULLSCREEN && DRAGGINGWINDOW->m_isFloating) {
+    if ((WAS_FULLSCREEN || WAS_MAX) && DRAGGINGWINDOW->m_isFloating) {
         const auto MOUSECOORDS = g_pInputManager->getMouseCoordsInternal();
         // SEKAI_DRAG_RESTORE: 윈도우처럼 — 가로는 잡은 비율 그대로, 세로는 창 위쪽에서 커서까지 그대로
         //   (원래는 창 가운데를 커서에 맞춰, 큰 창은 제목줄이 커서보다 한참 위·화면 밖으로 나갔다)

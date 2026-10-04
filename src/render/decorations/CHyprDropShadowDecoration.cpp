@@ -105,7 +105,7 @@ void CHyprDropShadowDecoration::render(PHLMONITOR pMonitor, float const& a) {
     if (!PWINDOW->m_windowData.decorate.valueOrDefault())
         return;
 
-    if (PWINDOW->m_windowData.noShadow.valueOrDefault())
+    if (PWINDOW->m_windowData.noShadow.valueOrDefault() || PWINDOW->m_sekaiMaximized) // SEKAI_MAXIMIZE2: 최대화하면 그림자 없이
         return;
 
     static auto PSHADOWS            = CConfigValue<Hyprlang::INT>("decoration:shadow:enabled");

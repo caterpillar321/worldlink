@@ -1193,7 +1193,7 @@ float CWindow::rounding() {
     float       roundingPower = m_windowData.roundingPower.valueOr(*PROUNDINGPOWER);
     float       rounding      = m_windowData.rounding.valueOr(*PROUNDING) * (roundingPower / 2.0); /* Make perceived roundness consistent. */
 
-    return m_windowData.noRounding.valueOrDefault() ? 0 : rounding;
+    return m_windowData.noRounding.valueOrDefault() || m_sekaiMaximized ? 0 : rounding; // SEKAI_MAXIMIZE2: 최대화하면 각지게 (윈도우 11)
 }
 
 float CWindow::roundingPower() {
@@ -1224,7 +1224,7 @@ void CWindow::updateWindowData(const SWorkspaceRule& workspaceRule) {
 }
 
 int CWindow::getRealBorderSize() {
-    if (m_windowData.noBorder.valueOrDefault() || (m_workspace && isEffectiveInternalFSMode(FSMODE_FULLSCREEN)))
+    if (m_windowData.noBorder.valueOrDefault() || (m_workspace && isEffectiveInternalFSMode(FSMODE_FULLSCREEN)) || m_sekaiMaximized) // SEKAI_MAXIMIZE2
         return 0;
 
     static auto PBORDERSIZE = CConfigValue<Hyprlang::INT>("general:border_size");
@@ -1483,7 +1483,7 @@ void CWindow::onUpdateState() {
 
     if (requestsMX.has_value() && !(m_suppressedEvents & SUPPRESS_MAXIMIZE)) {
         if (m_isMapped)
-            g_pCompositor->changeWindowFullscreenModeClient(m_self.lock(), FSMODE_MAXIMIZED, requestsMX.value());
+            sekaiSetMaximized(requestsMX.value()); // SEKAI_MAXIMIZE2
         else { // SEKAI_INITIAL_MAXIMIZE: 나타날 때 쓰게 적어 둔다 (요청 값은 이 함수가 끝나면 지워진다)
             const auto SELF = m_self.lock();
             sekaiTakeInitialMaximize(SELF); // 앞선 요청은 지우고
@@ -1594,7 +1594,7 @@ void CWindow::onX11ConfigureRequest(CBox box) {
 
     g_pHyprRenderer->damageWindow(m_self.lock());
 
-    if (!m_isFloating || isFullscreen() || g_pInputManager->m_currentlyDraggedWindow == m_self) {
+    if (!m_isFloating || isFullscreen() || m_sekaiMaximized || g_pInputManager->m_currentlyDraggedWindow == m_self) { // SEKAI_MAXIMIZE2
         sendWindowSize(true);
         g_pInputManager->refocus();
         g_pHyprRenderer->damageWindow(m_self.lock());
@@ -1948,6 +1948,96 @@ bool CWindow::priorityFocus() {
     return !m_isX11 && CAsyncDialogBox::isPriorityDialogBox(getPID());
 }
 
+void CWindow::sekaiSendMaximizedState() {
+    if (m_xdgSurface && m_xdgSurface->m_toplevel)
+        m_xdgSurface->m_toplevel->setMaximized(m_sekaiMaximized);
+    if (m_isX11 && m_xwaylandSurface)
+        m_xwaylandSurface->setMaximized(m_sekaiMaximized);
+}
+
+CBox CWindow::sekaiMaximizedBox() {
+    const auto PMONITOR = m_monitor.lock();
+    if (!PMONITOR)
+        return {m_realPosition->goal(), m_realSize->goal()};
+    // 작업 영역(작업 표시줄 등을 뺀 곳)에서 창 둘레의 몫(제목줄 막대·테두리 — 최대화하면 테두리는 0)을 뺀다
+    const auto RESERVED = getFullWindowReservedArea();
+    CBox       box      = {PMONITOR->m_position + PMONITOR->m_reservedTopLeft + RESERVED.topLeft,
+                           PMONITOR->m_size - PMONITOR->m_reservedTopLeft - PMONITOR->m_reservedBottomRight - RESERVED.topLeft - RESERVED.bottomRight};
+    return box.round();
+}
+
+void CWindow::sekaiRefitMaximized() {
+    if (!m_sekaiMaximized || !m_isMapped || isFullscreen())
+        return;
+    const auto B = sekaiMaximizedBox();
+    if (m_realPosition->goal() == B.pos() && m_realSize->goal() == B.size())
+        return;
+    *m_realPosition = B.pos();
+    *m_realSize     = B.size();
+    m_position      = B.pos();
+    m_size          = B.size();
+    sendWindowSize(true);
+}
+
+void CWindow::sekaiSetMaximized(bool on) {
+    if (!m_isMapped || !m_isFloating)
+        return; // SekaiOS 의 창은 모두 떠 있다 — 바둑판(타일) 창은 다루지 않는다
+    const auto SELF = m_self.lock();
+    if (on && sekaiFixedSize()) { // SEKAI_FIXED_SIZE: 크기를 못 바꾸는 창은 최대화하지 않는다 — 요청한 앱에 "안 됐다"고
+        Debug::log(LOG, "[sekai] 크기 고정 창은 최대화하지 않는다: {}", SELF);
+        sekaiSendMaximizedState();
+        return;
+    }
+    if (on == m_sekaiMaximized) {
+        sekaiSendMaximizedState(); // 앱이 같은 요청을 다시 했다 — 상태만 다시 알린다
+        return;
+    }
+    const bool FS = isFullscreen();
+    if (on) {
+        // 되돌아갈 자리 — 전체 화면 중이면 전체 화면 전의 자리
+        m_sekaiRestorePosition = FS ? m_lastFloatingPosition : m_realPosition->goal();
+        m_sekaiRestoreSize     = FS ? m_lastFloatingSize : m_realSize->goal();
+        m_sekaiHasRestore      = true;
+    }
+    m_sekaiMaximized = on;
+    // 모서리·테두리·그림자 (최대화하면 없다) — 제목줄 몫(예약 영역)이 바뀌므로 자리를 재기 전에
+    g_pCompositor->updateWindowAnimatedDecorationValues(SELF);
+    g_pDecorationPositioner->forceRecalcFor(SELF);
+    updateWindowDecos();
+
+    if (FS) {
+        // 전체 화면 중 — 전체 화면이 끝나면 돌아갈 자리만 바꾼다
+        if (on) {
+            const auto B           = sekaiMaximizedBox();
+            m_lastFloatingPosition = B.pos();
+            m_lastFloatingSize     = B.size();
+        } else if (m_sekaiHasRestore) {
+            m_lastFloatingPosition = m_sekaiRestorePosition;
+            m_lastFloatingSize     = m_sekaiRestoreSize;
+        }
+    } else if (on) {
+        sekaiRefitMaximized();
+        g_pCompositor->changeWindowZOrder(SELF, true); // 대화상자도 함께 위로 (SEKAI_RAISE)
+    } else {
+        const auto WORK = sekaiMaximizedBox();
+        Vector2D   pos = m_sekaiRestorePosition, size = m_sekaiRestoreSize;
+        // 복원할 자리가 없거나(최대화로 열린 창) 이 작업 영역과 겹치지 않으면(모니터를 뺐다 등) 작업 영역 가운데에 70% 로
+        if (!m_sekaiHasRestore || size.x < 1 || size.y < 1 || !CBox{pos, size}.overlaps(WORK)) {
+            size = WORK.size() * 0.7;
+            pos  = WORK.pos() + (WORK.size() - size) / 2.0;
+        }
+        *m_realPosition = pos;
+        *m_realSize     = size;
+        m_position      = pos;
+        m_size          = size;
+        sendWindowSize(true);
+    }
+    sekaiSendMaximizedState();
+    g_pHyprRenderer->damageWindow(SELF);
+    EMIT_HOOK_EVENT("fullscreen", SELF); // 창 목록(foreign-toplevel)이 최대화 상태를 다시 알리게
+    g_pEventManager->postEvent(SHyprIPCEvent{"sekaimaximized", std::format("{:x},{}", (uintptr_t)this, on ? 1 : 0)});
+}
+
 void CWindow::sekaiSetMinimized(bool on) {
     if (on == m_sekaiMinimized || !m_isMapped)
         return;
@@ -1972,6 +2062,7 @@ void CWindow::sekaiSetMinimized(bool on) {
             g_pCompositor->focusWindow(g_pLayoutManager->getCurrentLayout()->getNextWindowCandidate(SELF));
     } else {
         setHidden(false);
+        sekaiRefitMaximized(); // SEKAI_MAXIMIZE2: 숨어 있는 동안 작업 표시줄·모니터가 바뀌었을 수 있다
         g_pCompositor->changeWindowZOrder(SELF, true);
     }
     if (m_workspace)

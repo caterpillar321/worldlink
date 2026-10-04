@@ -82,6 +82,22 @@ CKeybindManager::CKeybindManager() {
             g_pCompositor->focusWindow(W);
         return {};
     };
+    // SEKAI_MAXIMIZE2: sekaimaximize on|off|toggle[,<창>] — 창을 집어 준다 (fullscreen 1 은 그 순간의 초점 창에 걸려
+    //   셸·제목줄이 초점 맞추기를 먼저 해야 했다). 전체 화면 중이면 전체 화면이 끝날 때 갈 자리만 바뀐다
+    m_dispatchers["sekaimaximize"] = [](std::string args) -> SDispatchResult {
+        const auto COMMA = args.find(',');
+        const auto MODE  = trim(args.substr(0, COMMA));
+        const auto W     = COMMA == std::string::npos ? g_pCompositor->m_lastWindow.lock() : g_pCompositor->getWindowByRegex(trim(args.substr(COMMA + 1)));
+        if (!W)
+            return {.success = false, .error = "No such window found"};
+        if (!W->m_isFloating)
+            return {.success = false, .error = "Only floating windows can be maximized"};
+        const bool ON = MODE == "on" ? true : MODE == "off" ? false : !W->m_sekaiMaximized;
+        if (ON && W->m_sekaiMinimized)
+            W->sekaiSetMinimized(false);
+        W->sekaiSetMaximized(ON);
+        return {};
+    };
     // initialize all dispatchers
 
     m_dispatchers["exec"]                           = spawn;
@@ -1200,7 +1216,7 @@ SDispatchResult CKeybindManager::setActiveTiled(std::string args) {
 SDispatchResult CKeybindManager::centerWindow(std::string args) {
     const auto PWINDOW = g_pCompositor->m_lastWindow.lock();
 
-    if (!PWINDOW || !PWINDOW->m_isFloating || PWINDOW->isFullscreen())
+    if (!PWINDOW || !PWINDOW->m_isFloating || PWINDOW->isFullscreen() || PWINDOW->m_sekaiMaximized) // SEKAI_MAXIMIZE2: 최대화한 창은 옮기거나 크기를 바꾸지 않는다 (셸은 먼저 복원한다)
         return {.success = false, .error = "No floating window found"};
 
     const auto PMONITOR = PWINDOW->m_monitor.lock();
@@ -1361,6 +1377,12 @@ SDispatchResult CKeybindManager::fullscreenActive(std::string args) {
 
     if (!PWINDOW)
         return {.success = false, .error = "Window not found"};
+
+    // SEKAI_MAXIMIZE2: fullscreen 1 = 지금 창의 최대화 켜고 끄기 (창의 상태)
+    if (args == "1" && PWINDOW->m_isFloating && !PWINDOW->isFullscreen()) {
+        PWINDOW->sekaiSetMaximized(!PWINDOW->m_sekaiMaximized);
+        return {};
+    }
 
     const eFullscreenMode MODE = args == "1" ? FSMODE_MAXIMIZED : FSMODE_FULLSCREEN;
 
@@ -2225,7 +2247,7 @@ SDispatchResult CKeybindManager::resizeActive(std::string args) {
     if (!PLASTWINDOW)
         return {.success = false, .error = "No window found"};
 
-    if (PLASTWINDOW->isFullscreen())
+    if (PLASTWINDOW->isFullscreen() || PLASTWINDOW->m_sekaiMaximized) // SEKAI_MAXIMIZE2: 최대화한 창은 옮기거나 크기를 바꾸지 않는다 (셸은 먼저 복원한다)
         return {.success = false, .error = "Window is fullscreen"};
 
     const auto SIZ = g_pCompositor->parseWindowVectorArgsRelative(args, PLASTWINDOW->m_realSize->goal());
@@ -2247,7 +2269,7 @@ SDispatchResult CKeybindManager::moveActive(std::string args) {
     if (!PLASTWINDOW)
         return {.success = false, .error = "No window found"};
 
-    if (PLASTWINDOW->isFullscreen())
+    if (PLASTWINDOW->isFullscreen() || PLASTWINDOW->m_sekaiMaximized) // SEKAI_MAXIMIZE2: 최대화한 창은 옮기거나 크기를 바꾸지 않는다 (셸은 먼저 복원한다)
         return {.success = false, .error = "Window is fullscreen"};
 
     const auto POS = g_pCompositor->parseWindowVectorArgsRelative(args, PLASTWINDOW->m_realPosition->goal());
@@ -2269,7 +2291,7 @@ SDispatchResult CKeybindManager::moveWindow(std::string args) {
         return {.success = false, .error = "moveWindow: no window"};
     }
 
-    if (PWINDOW->isFullscreen())
+    if (PWINDOW->isFullscreen() || PWINDOW->m_sekaiMaximized) // SEKAI_MAXIMIZE2: 최대화한 창은 옮기거나 크기를 바꾸지 않는다 (셸은 먼저 복원한다)
         return {.success = false, .error = "Window is fullscreen"};
 
     const auto POS = g_pCompositor->parseWindowVectorArgsRelative(MOVECMD, PWINDOW->m_realPosition->goal());
@@ -2291,7 +2313,7 @@ SDispatchResult CKeybindManager::resizeWindow(std::string args) {
         return {.success = false, .error = "resizeWindow: no window"};
     }
 
-    if (PWINDOW->isFullscreen())
+    if (PWINDOW->isFullscreen() || PWINDOW->m_sekaiMaximized) // SEKAI_MAXIMIZE2: 최대화한 창은 옮기거나 크기를 바꾸지 않는다 (셸은 먼저 복원한다)
         return {.success = false, .error = "Window is fullscreen"};
 
     const auto SIZ = g_pCompositor->parseWindowVectorArgsRelative(MOVECMD, PWINDOW->m_realSize->goal());
@@ -2864,7 +2886,7 @@ SDispatchResult CKeybindManager::changeMouseBindMode(const eMouseBindMode MODE) 
         if (!PWINDOW)
             return SDispatchResult{.passEvent = true};
 
-        if (!PWINDOW->isFullscreen() && MODE == MBIND_MOVE)
+        if (!PWINDOW->isFullscreen() && !PWINDOW->m_sekaiMaximized && MODE == MBIND_MOVE) // SEKAI_MAXIMIZE2: 예전 최대화(전체 화면)와 같게
             PWINDOW->checkInputOnDecos(INPUT_TYPE_DRAG_START, MOUSECOORDS);
 
         if (g_pInputManager->m_currentlyDraggedWindow.expired())
