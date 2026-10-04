@@ -158,6 +158,8 @@ void sekaiClientMoveStart(PHLWINDOW w) {
 
 #include <aquamarine/input/Input.hpp>
 #include <unordered_set>
+#include <map>
+#include <set>
 #include "../eventLoop/EventLoopManager.hpp"
 #include "SekaiA11yMonitor.hpp"
 
@@ -961,19 +963,7 @@ void CInputManager::processMouseDownNormal(const IPointer::SButtonEvent& e) {
     if (w && !m_lastFocusOnLS && !g_pSessionLockManager->isSessionLocked() && w->checkInputOnDecos(INPUT_TYPE_BUTTON, mouseCoords, e))
         return;
 
-    // clicking on border triggers resize
-    // TODO detect click on LS properly
-    if (*PRESIZEONBORDER && !g_pSessionLockManager->isSessionLocked() && !m_lastFocusOnLS && e.state == WL_POINTER_BUTTON_STATE_PRESSED && (!w || !w->isX11OverrideRedirect())) {
-        if (w && !w->isFullscreen()) {
-            const CBox real = {w->m_realPosition->value().x, w->m_realPosition->value().y, w->m_realSize->value().x, w->m_realSize->value().y};
-            const CBox grab = {real.x - BORDER_GRAB_AREA, real.y - BORDER_GRAB_AREA, real.width + 2 * BORDER_GRAB_AREA, real.height + 2 * BORDER_GRAB_AREA};
-
-            if (false && (grab.containsPoint(mouseCoords) && (!real.containsPoint(mouseCoords) || w->isInCurvedCorner(mouseCoords.x, mouseCoords.y))) && !w->hasPopupAt(mouseCoords)) { // SEKAI_BORDER_GRAB
-                g_pKeybindManager->resizeWithBorder(e);
-                return;
-            }
-        }
-    }
+    // (원래의 테두리 크기 조절은 위 SEKAI_BORDER_GRAB 이 대신한다)
 
     switch (e.state) {
         case WL_POINTER_BUTTON_STATE_PRESSED: {
@@ -1631,8 +1621,9 @@ static bool                                         g_sekaiStickyUsed    = false
 static int                                          g_sekaiShiftTaps     = 0;
 static Time::steady_tp                              g_sekaiShiftTapAt, g_sekaiRShiftAt;
 static bool                                         g_sekaiRShiftDown = false;
-static std::unordered_map<uint32_t, Time::steady_tp> g_sekaiLastUp;   // 반복 입력 무시 — 키마다 마지막으로 뗀 때
-static std::unordered_set<uint32_t>                 g_sekaiDropped;  // 버린 누름 — 그 뗌도 버린다
+using SSekaiKeyId = std::pair<const IKeyboard*, uint32_t>;           // 키보드마다 따로 (키보드 여럿이 서로 간섭하지 않게)
+static std::map<SSekaiKeyId, Time::steady_tp>        g_sekaiLastUp;   // 반복 입력 무시 — 키마다 마지막으로 뗀 때
+static std::set<SSekaiKeyId>                         g_sekaiDropped;  // 버린 누름 — 그 뗌도 버린다 (앱이 누름 없는 뗌을 받지 않게)
 struct SSekaiSlowKey {
     IKeyboard::SKeyEvent ev;
     WP<IKeyboard>        kb;
@@ -1729,18 +1720,19 @@ void CInputManager::onKeyboardKey(const IKeyboard::SKeyEvent& event, SP<IKeyboar
             }
         }
         // 반복 입력 무시 — 같은 키를 방금 뗐는데 또 누르면 (손떨림) 버린다
+        const SSekaiKeyId KID{pKeyboard.get(), event.keycode};
+        // 버린 누름의 뗌은 (반복 입력 무시·누르고 있어야 입력 어느 쪽이 버렸든) 같이 버린다
+        if (!PRESSED && !g_sekaiSlowPass && g_sekaiDropped.erase(KID))
+            return;
         if (*PBOUNCE > 0 && !MOD && !g_sekaiSlowPass) {
             if (PRESSED) {
-                const auto IT = g_sekaiLastUp.find(event.keycode);
+                const auto IT = g_sekaiLastUp.find(KID);
                 if (IT != g_sekaiLastUp.end() && NOW - IT->second < std::chrono::milliseconds(*PBOUNCE)) {
-                    g_sekaiDropped.insert(event.keycode);
+                    g_sekaiDropped.insert(KID);
                     return;
                 }
-            } else {
-                if (g_sekaiDropped.erase(event.keycode))
-                    return;
-                g_sekaiLastUp[event.keycode] = NOW;
-            }
+            } else
+                g_sekaiLastUp[KID] = NOW;
         }
         // 누르고 있어야 입력 — N ms 동안 눌려 있어야 그 누름을 넘긴다. 그 전에 떼면 둘 다 버린다
         if (*PSLOW > 0 && !MOD && !g_sekaiSlowPass) {
@@ -1762,10 +1754,13 @@ void CInputManager::onKeyboardKey(const IKeyboard::SKeyEvent& event, SP<IKeyboar
                         nullptr);
                     g_pEventLoopManager->addTimer(g_sekaiSlowTimer);
                 }
+                // 기다리던 다른 키는 버린다 — 윈도우처럼 한 번에 한 키만 (그 키의 뗌도 버려 앱에 누름 없는 뗌이 가지 않게)
+                if (g_sekaiSlow && (g_sekaiSlow->ev.keycode != event.keycode || g_sekaiSlow->kb.lock() != pKeyboard))
+                    g_sekaiDropped.insert({g_sekaiSlow->kb.lock().get(), g_sekaiSlow->ev.keycode});
                 g_sekaiSlow = SSekaiSlowKey{event, pKeyboard};
                 g_sekaiSlowTimer->updateTimeout(std::chrono::milliseconds(*PSLOW));
                 return;
-            } else if (g_sekaiSlow && g_sekaiSlow->ev.keycode == event.keycode) {
+            } else if (g_sekaiSlow && g_sekaiSlow->ev.keycode == event.keycode && g_sekaiSlow->kb.lock() == pKeyboard) {
                 g_sekaiSlow.reset();
                 g_sekaiSlowTimer->updateTimeout(std::nullopt);
                 return;
