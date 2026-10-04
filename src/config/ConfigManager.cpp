@@ -2894,6 +2894,7 @@ std::optional<std::string> CConfigManager::handleWorkspaceRules(const std::strin
     auto           rules = value.substr(FIRST_DELIM + 1);
     SWorkspaceRule wsRule;
     wsRule.workspaceString = first_ident;
+    bool sekaiPersistentSet = false; // SEKAI_WS_PERSIST: persistent: 를 적었나 (false 로 풀 수 있게)
     // if (id == WORKSPACE_INVALID) {
     //     // it could be the monitor. If so, second value MUST be
     //     // the workspace.
@@ -2958,6 +2959,7 @@ std::optional<std::string> CConfigManager::handleWorkspaceRules(const std::strin
         } else if ((delim = rule.find("persistent:")) != std::string::npos) {
             CHECK_OR_THROW(configStringToInt(rule.substr(delim + 11)))
             wsRule.isPersistent = *X;
+            sekaiPersistentSet  = true;
         } else if ((delim = rule.find("defaultName:")) != std::string::npos)
             wsRule.defaultName = rule.substr(delim + 12);
         else if ((delim = rule.find(ruleOnCreatedEmpty)) != std::string::npos) {
@@ -2996,8 +2998,20 @@ std::optional<std::string> CConfigManager::handleWorkspaceRules(const std::strin
 
     if (IT == m_workspaceRules.end())
         m_workspaceRules.emplace_back(wsRule);
-    else
+    else {
         *IT = mergeWorkspaceRules(*IT, wsRule);
+        // SEKAI_WS_PERSIST: 합치기는 persistent 를 켜기만 했다 — "persistent:false" 로 풀리게 (데스크톱을 닫으면 셸이 보낸다).
+        //   이미 있는 빈 작업 공간이면 바로 사라진다 (전엔 다시 로그인할 때까지 남아 네 손가락 쓸기로 닫은 데스크톱에 갔다)
+        if (sekaiPersistentSet && !wsRule.isPersistent) {
+            IT->isPersistent = false;
+            if (!m_isFirstLaunch && id != WORKSPACE_INVALID) {
+                if (const auto WS = g_pCompositor->getWorkspaceByID(id); WS) {
+                    WS->m_persistent = false;
+                    g_pCompositor->sanityCheckWorkspaces();
+                }
+            }
+        }
+    }
 
     return {};
 }
