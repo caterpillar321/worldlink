@@ -3,10 +3,10 @@
 #include "../desktop/Window.hpp"
 #include <algorithm>
 
-// SEKAI_CLIENT_DECO: 앱이 고른 모드를 기억한다 — client 를 고른 앱(Electron 의 Discord·VS Code, Firefox 탭 제목줄 …)은
+// SEKAI_CLIENT_DECO: 앱이 고른 모드를 그대로 따른다 — client 를 고른 앱(Electron 의 Discord·VS Code, Firefox·Chromium …)은
 //   제목줄을 스스로 그리므로 hyprbars 가 그 창에는 막대를 그리지 않는다 (CWindow::sekaiClientDecoration).
-//   답은 원본처럼 늘 server — client 로 답하면 GTK 대화상자가 큰 그림자 여백을 붙여 그리고, 창 크기가 그 여백까지
-//   잡혀 아래쪽 단추 누름이 창 밖으로 빠졌다 (sekai25). 위 앱들은 server 라는 답에도 스스로 그린다
+//   예전엔 답을 늘 server 로 하고 고른 것만 기억했는데, 답을 따르는 앱(kitty 의 장식 켜기 설정)은 server 라는 답에
+//   그리지 않아 제목줄이 아예 없었다. GTK 는 이 규약을 쓰지 않는다 (그림자 여백 문제는 SEKAI_GEOM_CSD 쪽)
 //   창(xdg_toplevel)은 장식 객체보다 먼저 사라질 수 있다 — 만들 때 잡아 둔 약한 참조로만 본다
 //   (예전엔 만들 때의 날 wl_resource 를 다시 읽어, 해제된 메모리에 썼다 — 샌드박스 앱도 일으킬 수 있었다)
 static void sekaiNoteXDGMode(const SP<CXDGToplevelResource>& TL, bool client) {
@@ -38,14 +38,14 @@ CXDGDecoration::CXDGDecoration(SP<CZxdgToplevelDecorationV1> resource_, wl_resou
         }
 
         const bool CLIENT = mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
-        LOGM(LOG, "setMode: {}. Noting it and sending MODE_SERVER_SIDE as reply. (SEKAI_CLIENT_DECO)", modeString);
+        LOGM(LOG, "setMode: {}. Granting it. (SEKAI_CLIENT_DECO)", modeString);
         const auto TL = m_sekaiToplevel.lock();
         if (!TL) {
             m_resource->error(ZXDG_TOPLEVEL_DECORATION_V1_ERROR_ORPHANED, "toplevel destroyed before its decoration");
             return;
         }
         sekaiNoteXDGMode(TL, CLIENT);
-        m_resource->sendConfigure(ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+        m_resource->sendConfigure(CLIENT ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE : ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
     });
 
     m_resource->setUnsetMode([this](CZxdgToplevelDecorationV1*) {

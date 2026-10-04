@@ -33,6 +33,7 @@ using namespace Hyprutils::OS;
 #include "../config/ConfigDataValues.hpp"
 #include "../config/ConfigValue.hpp"
 #include "../managers/CursorManager.hpp"
+#include "../render/decorations/DecorationPositioner.hpp"
 #include "../managers/input/SekaiA11yMonitor.hpp"
 #include "../hyprerror/HyprError.hpp"
 #include "../devices/IPointer.hpp"
@@ -289,7 +290,8 @@ std::string CHyprCtl::getWindowData(PHLWINDOW w, eHyprCtlOutputFormat format) {
     "xdgDescription": "{}",
     "sekaiParent": "0x{:x}",
     "sekaiFixed": {},
-    "sekaiCSD": {}
+    "sekaiCSD": {},
+    "sekaiTop": {}
 }},)#",
             (uintptr_t)w.get(), (w->m_isMapped ? "true" : "false"), (w->isHidden() ? "true" : "false"), (int)w->m_realPosition->goal().x, (int)w->m_realPosition->goal().y,
             (int)w->m_realSize->goal().x, (int)w->m_realSize->goal().y, w->m_workspace ? w->workspaceID() : WORKSPACE_INVALID,
@@ -300,7 +302,9 @@ std::string CHyprCtl::getWindowData(PHLWINDOW w, eHyprCtlOutputFormat format) {
             (g_pInputManager->isWindowInhibiting(w, false) ? "true" : "false"), escapeJSONStrings(w->xdgTag().value_or("")), escapeJSONStrings(w->xdgDescription().value_or("")),
             (uintptr_t)(w->parent() ? w->parent().get() : nullptr), // SEKAI_PARENT: 딸린 창(대화상자)의 부모 — 작업 표시줄이 따로 세지 않게
             (w->sekaiFixedSize() ? "true" : "false"), // SEKAI_FIXED_SIZE: 크기 고정 창 — 셸이 스냅하지 않게
-            (w->sekaiClientDecoration() ? "true" : "false")); // SEKAI_CLIENT_DECO: 제목줄을 앱이 그린다 — 셸의 제목줄 높이 계산에
+            (w->sekaiClientDecoration() ? "true" : "false"), // SEKAI_CLIENT_DECO: 제목줄을 앱이 그린다
+            // SEKAI_FRAME_TOP: 창 영역 위에 장식(제목줄 막대)이 차지하는 높이 — 셸이 규칙·설정으로 다시 짐작하지 않게
+            (int)std::round(g_pDecorationPositioner->getWindowDecorationReserved(w).topLeft.y));
     } else {
         return std::format(
             "Window {:x} -> {}:\n\tmapped: {}\n\thidden: {}\n\tat: {},{}\n\tsize: {},{}\n\tworkspace: {} ({})\n\tfloating: {}\n\tpseudo: {}\n\tmonitor: {}\n\tclass: {}\n\ttitle: "

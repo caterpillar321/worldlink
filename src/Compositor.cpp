@@ -657,10 +657,14 @@ void CCompositor::initManagers(eManagersInitStage stage) {
 
             Debug::log(LOG, "Creating the PluginSystem!");
             g_pPluginSystem = makeUnique<CPluginSystem>();
-            g_pConfigManager->handlePluginLoads();
 
             Debug::log(LOG, "Creating the DecorationPositioner!");
             g_pDecorationPositioner = makeUnique<CDecorationPositioner>();
+
+            // SEKAI_PLUGIN_ORDER: 설정의 plugin = … 은 장식 배치기를 만든 뒤에 로드한다 — 원래는 그 전에 로드돼, 제목줄
+            //   플러그인(hyprbars)의 창 열림 훅이 배치기 것보다 먼저 불려 예외로 내려졌다. 그래서 SekaiOS 는 세션이 뜬 뒤
+            //   1초 기다렸다가 hyprctl 로 로드했는데, 느린 PC 에선 1초가 모자랄 수 있었다
+            g_pConfigManager->handlePluginLoads();
 
             Debug::log(LOG, "Creating the CursorManager!");
             g_pCursorManager = makeUnique<CCursorManager>();
