@@ -1758,6 +1758,17 @@ bool CWindow::sekaiClientDecoration() {
 
 // SEKAI_MODAL: 이 창의 모달 대화상자(xdg-dialog 의 modal) — 떠 있으면 부모를 누를 때 그리로 초점을 옮긴다 (윈도우처럼)
 PHLWINDOW CWindow::sekaiModalChild() {
+    static int depth = 0; // 부모 고리가 있어도 끝나게 (앱이 set_parent 로 고리를 만들 수 있다)
+    if (depth >= 16)
+        return nullptr;
+    struct SDepth {
+        SDepth() {
+            ++depth;
+        }
+        ~SDepth() {
+            --depth;
+        }
+    } guard;
     for (auto const& c : g_pCompositor->m_windows) {
         if (!c->m_isMapped || c->isHidden() || c->m_isX11 || !c->m_xdgSurface || !c->m_xdgSurface->m_toplevel)
             continue;

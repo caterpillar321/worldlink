@@ -236,13 +236,21 @@ CXDGToplevelResource::CXDGToplevelResource(SP<CXdgToplevel> resource_, SP<CXDGSu
     });
 
     m_resource->setSetParent([this](CXdgToplevel* r, wl_resource* parentR) {
+        auto newp = parentR ? CXDGToplevelResource::fromResource(parentR) : nullptr;
+        // SEKAI_PARENT_CYCLE: 자기 자신·자손을 부모로 두면 고리가 된다 — 규약대로 오류 (부모를 따라가는 코드가 끝나지 않았다)
+        for (auto p = newp; p; p = p->m_parent.lock()) {
+            if (p.get() == this) {
+                r->error(XDG_TOPLEVEL_ERROR_INVALID_PARENT, "parent would create a cycle");
+                return;
+            }
+        }
+
         auto oldParent = m_parent;
 
         if (m_parent)
             std::erase(m_parent->m_children, m_self);
 
-        auto newp = parentR ? CXDGToplevelResource::fromResource(parentR) : nullptr;
-        m_parent  = newp;
+        m_parent = newp;
 
         if (m_parent)
             m_parent->m_children.emplace_back(m_self);

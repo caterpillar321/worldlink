@@ -10,6 +10,7 @@
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/managers/AnimationManager.hpp>
 #include <hyprland/src/protocols/LayerShell.hpp>
+#include <hyprland/src/managers/SessionLockManager.hpp>
 #include <pango/pangocairo.h>
 
 #include "globals.hpp"
@@ -149,6 +150,11 @@ bool CHyprBar::inputIsValid() {
     static auto* const PENABLED = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprbars:enabled")->getDataStaticPtr();
 
     if (!**PENABLED)
+        return false;
+
+    // SEKAI_LOCK_BARS: 잠긴 동안 막대는 아무것도 하지 않는다 — 잠금 화면에서 보이지 않는 닫기·최소화 단추 자리를
+    //   눌러도 창이 닫혔다 (화면이 새지는 않아도 잠금 너머로 작업을 망가뜨릴 수 있었다)
+    if (g_pSessionLockManager->isSessionLocked())
         return false;
 
     if (!m_pWindow->m_workspace || !m_pWindow->m_workspace->isVisible() || !g_pInputManager->m_exclusiveLSes.empty() ||
@@ -379,6 +385,8 @@ void CHyprBar::handleDownEvent(SCallbackInfo& info, std::optional<ITouch::SDownE
 void CHyprBar::handleUpEvent(SCallbackInfo& info) {
     // SEKAI_BUTTON_RELEASE: 창 단추는 같은 단추 위에서 뗄 때 실행한다 (윈도우처럼 — 누른 채 벗어나 떼면 취소).
     //   전에는 누르는 순간 실행해서, 닫기를 잘못 누르고 손을 빼도 창이 닫혔다 (저장 안 한 메모장도)
+    if (m_iSekaiArmed >= 0 && g_pSessionLockManager->isSessionLocked()) // SEKAI_LOCK_BARS: 누른 채 잠겼다 — 실행하지 않는다
+        m_iSekaiArmed = -1;
     if (m_iSekaiArmed >= 0) {
         const int ARMED = m_iSekaiArmed;
         m_iSekaiArmed   = -1;

@@ -328,9 +328,9 @@ bool CProtocolManager::isGlobalPrivileged(const wl_global* global) {
         PROTO::constraints->getGlobal(),
         PROTO::activation->getGlobal(),
         PROTO::idle->getGlobal(),
-        PROTO::ime->getGlobal(),
-        PROTO::virtualKeyboard->getGlobal(),
-        PROTO::virtualPointer->getGlobal(),
+        // SEKAI_SANDBOX_INPUT: 입력기·가상 키보드·가상 포인터는 샌드박스 앱(Flatpak)에 주지 않는다 — 사용자가 자리를 비운 사이
+        //   단축키로 터미널을 열고 명령을 칠 수 있었고, 입력기를 잡으면 모든 키(잠금 화면 암호 포함)를 받았다.
+        //   화상 키보드(wvkbd)·ibus 는 샌드박스 밖이라 상관없다
         PROTO::serverDecorationKDE->getGlobal(),
         PROTO::tablet->getGlobal(),
         PROTO::presentation->getGlobal(),

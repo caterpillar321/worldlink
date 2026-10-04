@@ -4,6 +4,7 @@
 #include "../../debug/Log.hpp"
 #include "../KeybindManager.hpp"
 #include "../../helpers/Monitor.hpp"
+#include "../SessionLockManager.hpp"
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -187,8 +188,13 @@ namespace SekaiA11y {
         const bool     ISMOD   = contains(g_cfg.mods, SYM);
         const auto     NOW     = Time::steadyNow();
         bool           consume = false;
+        // 잠긴 동안은 Orca 명령 키를 가로채지 않는다 — 암호를 모르는 사람이 잠금 화면에서 Orca 명령으로 알림·화면
+        //   내용을 들을 수 있었다. 읽기(키 알림)는 그대로, 잠기기 전에 누른 키의 뗌은 마저 가로챈다
+        const bool     LOCKED  = g_pSessionLockManager->isSessionLocked();
 
-        if (PRESSED) {
+        if (PRESSED && LOCKED) {
+            g_soloSym = 0;
+        } else if (PRESSED) {
             if (g_swallowed.contains(event.keycode))
                 consume = true;
             else if (g_cfg.grabAll)

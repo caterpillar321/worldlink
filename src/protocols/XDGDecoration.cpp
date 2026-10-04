@@ -7,8 +7,9 @@
 //   제목줄을 스스로 그리므로 hyprbars 가 그 창에는 막대를 그리지 않는다 (CWindow::sekaiClientDecoration).
 //   답은 원본처럼 늘 server — client 로 답하면 GTK 대화상자가 큰 그림자 여백을 붙여 그리고, 창 크기가 그 여백까지
 //   잡혀 아래쪽 단추 누름이 창 밖으로 빠졌다 (sekai25). 위 앱들은 server 라는 답에도 스스로 그린다
-static void sekaiNoteXDGMode(wl_resource* toplevel, bool client) {
-    const auto TL = CXDGToplevelResource::fromResource(toplevel);
+//   창(xdg_toplevel)은 장식 객체보다 먼저 사라질 수 있다 — 만들 때 잡아 둔 약한 참조로만 본다
+//   (예전엔 만들 때의 날 wl_resource 를 다시 읽어, 해제된 메모리에 썼다 — 샌드박스 앱도 일으킬 수 있었다)
+static void sekaiNoteXDGMode(const SP<CXDGToplevelResource>& TL, bool client) {
     if (!TL || TL->m_sekaiClientDeco == client)
         return;
     TL->m_sekaiClientDeco = client;
@@ -20,8 +21,10 @@ CXDGDecoration::CXDGDecoration(SP<CZxdgToplevelDecorationV1> resource_, wl_resou
     if UNLIKELY (!m_resource->resource())
         return;
 
-    if (const auto TL = CXDGToplevelResource::fromResource(toplevel); TL)
+    if (const auto TL = CXDGToplevelResource::fromResource(toplevel); TL) {
         TL->m_sekaiHasXDGDeco = true; // SEKAI_GEOM_CSD
+        m_sekaiToplevel       = TL;
+    }
 
     m_resource->setDestroy([this](CZxdgToplevelDecorationV1* pMgr) { PROTO::xdgDecoration->destroyDecoration(this); });
     m_resource->setOnDestroy([this](CZxdgToplevelDecorationV1* pMgr) { PROTO::xdgDecoration->destroyDecoration(this); });
@@ -36,13 +39,23 @@ CXDGDecoration::CXDGDecoration(SP<CZxdgToplevelDecorationV1> resource_, wl_resou
 
         const bool CLIENT = mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
         LOGM(LOG, "setMode: {}. Noting it and sending MODE_SERVER_SIDE as reply. (SEKAI_CLIENT_DECO)", modeString);
-        sekaiNoteXDGMode(m_toplevelResource, CLIENT);
+        const auto TL = m_sekaiToplevel.lock();
+        if (!TL) {
+            m_resource->error(ZXDG_TOPLEVEL_DECORATION_V1_ERROR_ORPHANED, "toplevel destroyed before its decoration");
+            return;
+        }
+        sekaiNoteXDGMode(TL, CLIENT);
         m_resource->sendConfigure(ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
     });
 
     m_resource->setUnsetMode([this](CZxdgToplevelDecorationV1*) {
         LOGM(LOG, "unsetMode. Sending MODE_SERVER_SIDE.");
-        sekaiNoteXDGMode(m_toplevelResource, false);
+        const auto TL = m_sekaiToplevel.lock();
+        if (!TL) {
+            m_resource->error(ZXDG_TOPLEVEL_DECORATION_V1_ERROR_ORPHANED, "toplevel destroyed before its decoration");
+            return;
+        }
+        sekaiNoteXDGMode(TL, false);
         m_resource->sendConfigure(ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
     });
 

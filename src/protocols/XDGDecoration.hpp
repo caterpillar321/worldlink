@@ -5,6 +5,8 @@
 #include "WaylandProtocol.hpp"
 #include "xdg-decoration-unstable-v1.hpp"
 
+class CXDGToplevelResource;
+
 class CXDGDecoration {
   public:
     CXDGDecoration(SP<CZxdgToplevelDecorationV1> resource_, wl_resource* toplevel);
@@ -15,6 +17,7 @@ class CXDGDecoration {
   private:
     SP<CZxdgToplevelDecorationV1> m_resource;
     wl_resource*                  m_toplevelResource = nullptr; // READ-ONLY.
+    WP<CXDGToplevelResource>      m_sekaiToplevel;              // SEKAI_CLIENT_DECO: 창이 먼저 사라져도 안전하게 (날 포인터를 다시 읽지 않는다)
 };
 
 class CXDGDecorationProtocol : public IWaylandProtocol {
