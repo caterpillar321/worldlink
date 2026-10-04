@@ -3,6 +3,8 @@
 #include "../../desktop/LayerSurface.hpp"
 #include "../../config/ConfigValue.hpp"
 #include "../../managers/HookSystemManager.hpp"
+#include "../../managers/EventManager.hpp"
+#include "../../managers/SessionLockManager.hpp"
 #include "../../render/Renderer.hpp"
 
 void CInputManager::onSwipeBegin(IPointer::SSwipeBeginEvent e) {
@@ -12,6 +14,15 @@ void CInputManager::onSwipeBegin(IPointer::SSwipeBeginEvent e) {
     static auto PSWIPENEW        = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_create_new");
 
     EMIT_HOOK_EVENT_CANCELLABLE("swipeBegin", e);
+
+    // SEKAI_GESTURE: 작업 공간 쓸기가 아닌 세 손가락 이상은 셸의 제스처로 (잠금 화면에선 하지 않는다)
+    m_sekaiSwipe.active = false;
+    if (e.fingers >= 3 && (*PSWIPE == 0 || e.fingers != *PSWIPEFINGERS) && !g_pSessionLockManager->isSessionLocked()) {
+        m_sekaiSwipe.active  = true;
+        m_sekaiSwipe.fingers = e.fingers;
+        m_sekaiSwipe.delta   = {};
+        return;
+    }
 
     if ((!*PSWIPEMINFINGERS && e.fingers != *PSWIPEFINGERS) || (*PSWIPEMINFINGERS && e.fingers < *PSWIPEFINGERS) || *PSWIPE == 0 || g_pSessionLockManager->isSessionLocked())
         return;
@@ -48,6 +59,17 @@ void CInputManager::beginWorkspaceSwipe() {
 
 void CInputManager::onSwipeEnd(IPointer::SSwipeEndEvent e) {
     EMIT_HOOK_EVENT_CANCELLABLE("swipeEnd", e);
+
+    if (m_sekaiSwipe.active) { // SEKAI_GESTURE: 더 많이 움직인 축의 방향 — 조금만 움직였거나 손을 들어 취소했으면 없던 일
+        m_sekaiSwipe.active = false;
+        const auto D        = m_sekaiSwipe.delta;
+        if (e.cancelled || std::max(std::abs(D.x), std::abs(D.y)) < 60)
+            return;
+        const char* dir = std::abs(D.x) > std::abs(D.y) ? (D.x > 0 ? "right" : "left") : (D.y > 0 ? "down" : "up");
+        Debug::log(LOG, "[sekai] 제스처: {} 손가락 {} ({:.0f},{:.0f})", m_sekaiSwipe.fingers, dir, D.x, D.y);
+        g_pEventManager->postEvent(SHyprIPCEvent{"sekaigesture", std::format("swipe,{},{}", m_sekaiSwipe.fingers, dir)});
+        return;
+    }
 
     if (!m_activeSwipe.pWorkspaceBegin)
         return; // no valid swipe
@@ -193,6 +215,11 @@ void CInputManager::endWorkspaceSwipe() {
 
 void CInputManager::onSwipeUpdate(IPointer::SSwipeUpdateEvent e) {
     EMIT_HOOK_EVENT_CANCELLABLE("swipeUpdate", e);
+
+    if (m_sekaiSwipe.active) { // SEKAI_GESTURE
+        m_sekaiSwipe.delta = m_sekaiSwipe.delta + e.delta;
+        return;
+    }
 
     if (!m_activeSwipe.pWorkspaceBegin)
         return;

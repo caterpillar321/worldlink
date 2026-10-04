@@ -179,6 +179,13 @@ class CInputManager {
     bool              isWindowInhibiting(const PHLWINDOW& pWindow, bool onlyHl = true);
 
     SSwipeGesture     m_activeSwipe;
+    // SEKAI_GESTURE: 세 손가락 쓸기는 셸에 (작업 보기·바탕 화면 보기·앱 전환 — 윈도우의 정밀 터치패드 동작).
+    //   네 손가락 좌우는 원래의 작업 공간 쓸기(가상 데스크톱 넘기기). 손가락 수와 방향만 정해 sekaigesture 로 알린다
+    struct {
+        bool     active  = false;
+        uint32_t fingers = 0;
+        Vector2D delta;
+    } m_sekaiSwipe;
 
     CTimer            m_lastCursorMovement;
 
