@@ -1,4 +1,5 @@
 #include "Keyboard.hpp"
+#include "../managers/input/SekaiA11yMonitor.hpp"
 #include "../defines.hpp"
 
 #include <aquamarine/input/Input.hpp>
@@ -29,13 +30,16 @@ CKeyboard::CKeyboard(SP<Aquamarine::IKeyboard> keeb) : m_keyboard(keeb) {
     });
 
     m_listeners.key = keeb->events.key.listen([this](const Aquamarine::IKeyboard::SKeyEvent& event) {
+        SekaiA11y::g_xkbSkip.reset();
         m_keyboardEvents.key.emit(SKeyEvent{
             .timeMs  = event.timeMs,
             .keycode = event.key,
             .state   = event.pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED,
         });
 
-        updateXkbStateWithKey(event.key + 8, event.pressed);
+        // SEKAI_A11Y_MONITOR: 화면 읽기가 가로챈 키는 xkb 상태(Caps Lock 켜짐 등)도 바꾸지 않는다
+        if (SekaiA11y::g_xkbSkip != event.key)
+            updateXkbStateWithKey(event.key + 8, event.pressed);
     });
 
     m_listeners.modifiers = keeb->events.modifiers.listen([this] {

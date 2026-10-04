@@ -159,6 +159,7 @@ void sekaiClientMoveStart(PHLWINDOW w) {
 #include <aquamarine/input/Input.hpp>
 #include <unordered_set>
 #include "../eventLoop/EventLoopManager.hpp"
+#include "SekaiA11yMonitor.hpp"
 
 // SEKAI_LAYER_REFOCUS: 보이는 작업 공간에 마지막으로 초점을 가졌던 창이 있나
 static bool sekaiLastWindowShown() {
@@ -1774,6 +1775,10 @@ void CInputManager::onKeyboardKey(const IKeyboard::SKeyEvent& event, SP<IKeyboar
             }
         }
     }
+
+    // SEKAI_A11Y_MONITOR: 화면 읽기(Orca)가 가로챈 키는 단축키·앱에 넘기지 않는다 (SekaiA11yMonitor.cpp)
+    if (!DISALLOWACTION && SekaiA11y::onKey(event, pKeyboard))
+        return;
 
     const auto EMAP = std::unordered_map<std::string, std::any>{{"keyboard", pKeyboard}, {"event", event}};
     EMIT_HOOK_EVENT_CANCELLABLE("keyPress", EMAP);

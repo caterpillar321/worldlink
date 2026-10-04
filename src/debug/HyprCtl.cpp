@@ -33,6 +33,7 @@ using namespace Hyprutils::OS;
 #include "../config/ConfigDataValues.hpp"
 #include "../config/ConfigValue.hpp"
 #include "../managers/CursorManager.hpp"
+#include "../managers/input/SekaiA11yMonitor.hpp"
 #include "../hyprerror/HyprError.hpp"
 #include "../devices/IPointer.hpp"
 #include "../devices/IKeyboard.hpp"
@@ -1740,6 +1741,7 @@ CHyprCtl::CHyprCtl() {
     registerCommand(SHyprCtlCommand{"[[BATCH]]", false, dispatchBatch});
 
     startHyprCtlSocket();
+    SekaiA11y::start(); // SEKAI_A11Y_MONITOR: 화면 읽기용 키보드 감시 소켓
 }
 
 CHyprCtl::~CHyprCtl() {
