@@ -2542,7 +2542,8 @@ PHLWINDOW CCompositor::getWindowByRegex(const std::string& regexp_) {
     }
 
     for (auto const& w : g_pCompositor->m_windows) {
-        if (!w->m_isMapped || (w->isHidden() && !g_pLayoutManager->getCurrentLayout()->isWindowReachable(w)))
+        // SEKAI_MINIMIZE2: 최소화한 창은 숨겨져 있어도 찾을 수 있어야 한다 (되살리기·닫기·옮기기)
+        if (!w->m_isMapped || (w->isHidden() && !w->m_sekaiMinimized && !g_pLayoutManager->getCurrentLayout()->isWindowReachable(w)))
             continue;
 
         switch (mode) {
