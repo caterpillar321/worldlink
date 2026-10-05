@@ -1020,7 +1020,7 @@ void CXWM::setActiveWindow(xcb_window_t window) {
 }
 
 void CXWM::createWMWindow() {
-    constexpr const char* wmName = "Hyprland :D";
+    constexpr const char* wmName = "WorldLink";
     m_wmWindow                   = xcb_generate_id(getConnection());
     xcb_create_window(getConnection(), XCB_COPY_FROM_PARENT, m_wmWindow, m_screen->root, 0, 0, 10, 10, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, m_screen->root_visual, 0, nullptr);
     xcb_change_property(getConnection(), XCB_PROP_MODE_REPLACE, m_wmWindow, HYPRATOMS["_NET_WM_NAME"], HYPRATOMS["UTF8_STRING"],

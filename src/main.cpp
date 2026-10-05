@@ -19,7 +19,7 @@ using namespace Hyprutils::String;
 #include <filesystem>
 
 static void help() {
-    std::println("usage: Hyprland [arg [...]].\n");
+    std::println("usage: worldlink [arg [...]].\n");
     std::println(R"(Arguments:
     --help              -h       - Show this message again
     --config FILE       -c FILE  - Specify config file to use
@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
 
     for (auto it = args.begin(); it != args.end(); it++) {
         if (*it == "--i-am-really-stupid" && !ignoreSudo) {
-            std::println("[ WARNING ] Running Hyprland with superuser privileges might damage your system");
+            std::println("[ WARNING ] Running WorldLink with superuser privileges might damage your system");
 
             ignoreSudo = true;
         } else if (*it == "--socket") {
@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
 
     if (!ignoreSudo && NInit::isSudo()) {
         std::println(stderr,
-                     "[ ERROR ] Hyprland was launched with superuser privileges, but the privileges check is not omitted.\n"
+                     "[ ERROR ] WorldLink was launched with superuser privileges, but the privileges check is not omitted.\n"
                      "          Hint: Use the --i-am-really-stupid flag to omit that check.");
 
         return 1;
@@ -148,14 +148,14 @@ int main(int argc, char** argv) {
 
     if (socketName.empty() ^ (socketFd == -1)) {
         std::println(stderr,
-                     "[ ERROR ] Hyprland was launched with only one of --socket and --wayland-fd.\n"
+                     "[ ERROR ] WorldLink was launched with only one of --socket and --wayland-fd.\n"
                      "          Hint: Pass both --socket and --wayland-fd to perform Wayland socket handover.");
 
         return 1;
     }
 
     if (!verifyConfig)
-        std::println("Welcome to Hyprland!");
+        std::println("Welcome to WorldLink! (a fork of Hyprland 0.50.1)");
 
     // let's init the compositor.
     // it initializes basic Wayland stuff in the constructor.
@@ -163,7 +163,7 @@ int main(int argc, char** argv) {
         g_pCompositor                       = makeUnique<CCompositor>(verifyConfig);
         g_pCompositor->m_explicitConfigPath = configPath;
     } catch (const std::exception& e) {
-        std::println(stderr, "Hyprland threw in ctor: {}\nCannot continue.", e.what());
+        std::println(stderr, "WorldLink threw in ctor: {}\nCannot continue.", e.what());
         return 1;
     }
 

@@ -2799,7 +2799,7 @@ void CCompositor::performUserChecks() {
     }
 
     if (g_pHyprOpenGL->m_failedAssetsNo > 0) {
-        g_pHyprNotificationOverlay->addNotification(std::format("Hyprland failed to load {} essential asset{}, blame your distro's packager for doing a bad job at packaging!",
+        g_pHyprNotificationOverlay->addNotification(std::format("WorldLink failed to load {} essential asset{} — the package may be broken, try reinstalling worldlink.",
                                                                 g_pHyprOpenGL->m_failedAssetsNo, g_pHyprOpenGL->m_failedAssetsNo > 1 ? "s" : ""),
                                                     CHyprColor{1.0, 0.1, 0.1, 1.0}, 15000, ICON_ERROR);
     }

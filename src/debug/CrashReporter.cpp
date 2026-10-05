@@ -77,7 +77,7 @@ void NCrashReporter::createAndSaveCrash(int sig) {
 
         {
             CBufFileWriter<64> stderr(2);
-            stderr += "Hyprland has crashed :( Consult the crash report at ";
+            stderr += "WorldLink has crashed :( Consult the crash report at ";
             if (!reportPath.boundsExceeded()) {
                 stderr += reportPath.getStr();
             } else {
@@ -94,11 +94,11 @@ void NCrashReporter::createAndSaveCrash(int sig) {
     }
     CBufFileWriter<512> finalCrashReport(reportFd);
 
-    finalCrashReport += "--------------------------------------------\n   Hyprland Crash Report\n--------------------------------------------\n";
+    finalCrashReport += "--------------------------------------------\n   WorldLink Crash Report\n--------------------------------------------\n";
     finalCrashReport += getRandomMessage();
     finalCrashReport += "\n\n";
 
-    finalCrashReport += "Hyprland received signal ";
+    finalCrashReport += "WorldLink received signal ";
     finalCrashReport.writeNum(sig);
     finalCrashReport += '(';
     finalCrashReport += sigStrsignal(sig);
@@ -118,7 +118,7 @@ void NCrashReporter::createAndSaveCrash(int sig) {
     finalCrashReport += "\n";
 
     if (g_pPluginSystem && g_pPluginSystem->pluginCount() > 0) {
-        finalCrashReport += "Hyprland seems to be running with plugins. This crash might not be Hyprland's fault.\nPlugins:\n";
+        finalCrashReport += "WorldLink seems to be running with plugins. This crash might not be WorldLink's fault.\nPlugins:\n";
 
         const size_t          count = g_pPluginSystem->pluginCount();
         std::vector<CPlugin*> plugins(count);

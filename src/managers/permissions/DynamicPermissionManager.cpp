@@ -314,7 +314,7 @@ void CDynamicPermissionManager::askForPermission(wl_client* client, const std::s
     std::vector<std::string> options;
 
     if (!binaryPath.empty() && client) {
-        description += "<br/><br/><i>Hint: you can set persistent rules for these in the Hyprland config file.</i>";
+        description += "<br/><br/><i>Hint: you can set persistent rules for these in the WorldLink config file.</i>";
         options = {"Deny", "Allow and remember app", "Allow once"};
     } else
         options = {"Deny", "Allow"};
