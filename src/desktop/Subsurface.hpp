@@ -12,10 +12,12 @@ class CSubsurface {
     // root dummy nodes
     static UP<CSubsurface> create(PHLWINDOW pOwner);
     static UP<CSubsurface> create(WP<CPopup> pOwner);
+    static UP<CSubsurface> create(PHLLS pOwner);
 
     // real nodes
     static UP<CSubsurface> create(SP<CWLSubsurfaceResource> pSubsurface, PHLWINDOW pOwner);
     static UP<CSubsurface> create(SP<CWLSubsurfaceResource> pSubsurface, WP<CPopup> pOwner);
+    static UP<CSubsurface> create(SP<CWLSubsurfaceResource> pSubsurface, PHLLS pOwner);
 
     ~CSubsurface() = default;
 
@@ -31,6 +33,9 @@ class CSubsurface {
     void            onUnmap();
 
     bool            visible();
+    PHLLS           layerParent() const {
+        return m_layerParent.lock();
+    }
 
     void            recheckDamageForSubsurfaces();
 
@@ -57,6 +62,9 @@ class CSubsurface {
 
     PHLWINDOWREF                 m_windowParent;
     WP<CPopup>                   m_popupParent;
+    // SekaiOS: layer surfaces' own subsurfaces (e.g. GTK3 popovers in a layer-shell menu).
+    //   Without this their commits were never damaged and only redrew where the cursor passed.
+    PHLLSREF                     m_layerParent;
 
     std::vector<UP<CSubsurface>> m_children;
 

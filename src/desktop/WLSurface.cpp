@@ -227,7 +227,13 @@ SP<CWLSurface> CWLSurface::fromResource(SP<CWLSurfaceResource> pSurface) {
 }
 
 bool CWLSurface::keyboardFocusable() const {
-    if (m_windowOwner || m_popupOwner || m_subsurfaceOwner)
+    // SekaiOS: a layer surface's subsurface follows the layer's keyboard interactivity (before, it had no owner)
+    if (m_subsurfaceOwner) {
+        if (const auto LS = m_subsurfaceOwner->layerParent())
+            return LS->m_layerSurface && LS->m_layerSurface->m_current.interactivity != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE;
+        return true;
+    }
+    if (m_windowOwner || m_popupOwner)
         return true;
     if (m_layerOwner && m_layerOwner->m_layerSurface)
         return m_layerOwner->m_layerSurface->m_current.interactivity != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE;

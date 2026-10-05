@@ -3,6 +3,7 @@
 #include <string>
 #include "../defines.hpp"
 #include "WLSurface.hpp"
+#include "Subsurface.hpp"
 #include "../helpers/AnimatedVariable.hpp"
 
 class CLayerShellResource;
@@ -61,6 +62,7 @@ class CLayerSurface {
     Vector2D                   m_position;
     std::string                m_namespace = "";
     UP<CPopup>                 m_popupHead;
+    UP<CSubsurface>            m_subsurfaceHead; // SekaiOS: damage for the layer's own subsurfaces
 
     pid_t                      getPID();
 

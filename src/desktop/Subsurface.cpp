@@ -6,6 +6,7 @@
 #include "../protocols/core/Subcompositor.hpp"
 #include "../render/Renderer.hpp"
 #include "../managers/input/InputManager.hpp"
+#include "LayerSurface.hpp"
 
 UP<CSubsurface> CSubsurface::create(PHLWINDOW pOwner) {
     auto subsurface            = UP<CSubsurface>(new CSubsurface());
@@ -23,6 +24,27 @@ UP<CSubsurface> CSubsurface::create(WP<CPopup> pOwner) {
     subsurface->m_self        = subsurface;
     subsurface->initSignals();
     subsurface->initExistingSubsurfaces(pOwner->m_wlSurface->resource());
+    return subsurface;
+}
+
+UP<CSubsurface> CSubsurface::create(PHLLS pOwner) {
+    auto subsurface           = UP<CSubsurface>(new CSubsurface());
+    subsurface->m_layerParent = pOwner;
+    subsurface->m_self        = subsurface;
+    subsurface->initSignals();
+    subsurface->initExistingSubsurfaces(pOwner->m_surface->resource());
+    return subsurface;
+}
+
+UP<CSubsurface> CSubsurface::create(SP<CWLSubsurfaceResource> pSubsurface, PHLLS pOwner) {
+    auto subsurface           = UP<CSubsurface>(new CSubsurface());
+    subsurface->m_layerParent = pOwner;
+    subsurface->m_subsurface  = pSubsurface;
+    subsurface->m_self        = subsurface;
+    subsurface->m_wlSurface   = CWLSurface::create();
+    subsurface->m_wlSurface->assign(pSubsurface->m_surface.lock(), subsurface.get());
+    subsurface->initSignals();
+    subsurface->initExistingSubsurfaces(pSubsurface->m_surface.lock());
     return subsurface;
 }
 
@@ -62,6 +84,8 @@ void CSubsurface::initSignals() {
             m_listeners.newSubsurface = m_windowParent->m_wlSurface->resource()->m_events.newSubsurface.listen([this](const auto& resource) { onNewSubsurface(resource); });
         else if (m_popupParent)
             m_listeners.newSubsurface = m_popupParent->m_wlSurface->resource()->m_events.newSubsurface.listen([this](const auto& resource) { onNewSubsurface(resource); });
+        else if (m_layerParent)
+            m_listeners.newSubsurface = m_layerParent->m_surface->resource()->m_events.newSubsurface.listen([this](const auto& resource) { onNewSubsurface(resource); });
         else
             ASSERT(false);
     }
@@ -97,6 +121,14 @@ void CSubsurface::onCommit() {
         static auto PLOGDAMAGE = CConfigValue<Hyprlang::INT>("debug:log_damage");
         if (*PLOGDAMAGE)
             Debug::log(LOG, "Refusing to commit damage from a subsurface of {} because it's invisible.", m_windowParent.lock());
+        return;
+    }
+
+    if (!m_windowParent && !m_popupParent && m_layerParent.expired())
+        return; // layer surface parent is gone
+
+    if (const auto LS = m_layerParent.lock(); LS && !LS->m_mapped) {
+        m_lastSize = m_wlSurface->resource()->m_current.size;
         return;
     }
 
@@ -139,6 +171,10 @@ void CSubsurface::onNewSubsurface(SP<CWLSubsurfaceResource> pSubsurface) {
         PSUBSURFACE = m_children.emplace_back(CSubsurface::create(pSubsurface, m_windowParent.lock()));
     else if (m_popupParent)
         PSUBSURFACE = m_children.emplace_back(CSubsurface::create(pSubsurface, m_popupParent));
+    else if (const auto LS = m_layerParent.lock())
+        PSUBSURFACE = m_children.emplace_back(CSubsurface::create(pSubsurface, LS));
+
+    ASSERT(PSUBSURFACE);
 
     PSUBSURFACE->m_self = PSUBSURFACE;
 
@@ -191,6 +227,8 @@ Vector2D CSubsurface::coordsGlobal() {
         coords += m_windowParent->m_realPosition->value();
     else if (m_popupParent)
         coords += m_popupParent->coordsGlobal();
+    else if (const auto LS = m_layerParent.lock())
+        coords += LS->m_realPosition->value();
 
     return coords;
 }
@@ -212,6 +250,8 @@ bool CSubsurface::visible() {
         return g_pHyprRenderer->shouldRenderWindow(m_windowParent.lock());
     if (m_popupParent)
         return m_popupParent->visible();
+    if (const auto LS = m_layerParent.lock())
+        return LS->m_mapped;
     if (m_parent)
         return m_parent->visible();
 

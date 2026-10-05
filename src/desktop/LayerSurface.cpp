@@ -42,6 +42,9 @@ PHLLS CLayerSurface::create(SP<CLayerShellResource> resource) {
     g_pAnimationManager->createAnimation(Vector2D(0, 0), pLS->m_realPosition, g_pConfigManager->getAnimationPropertyConfig("layersIn"), pLS, AVARDAMAGE_ENTIRE);
     g_pAnimationManager->createAnimation(Vector2D(0, 0), pLS->m_realSize, g_pConfigManager->getAnimationPropertyConfig("layersIn"), pLS, AVARDAMAGE_ENTIRE);
 
+    // SekaiOS: track the layer's own subsurfaces so their commits get damaged (GTK3 popovers in our start menu)
+    pLS->m_subsurfaceHead = CSubsurface::create(pLS);
+
     pLS->registerCallbacks();
 
     pLS->m_alpha->setValueAndWarp(0.f);
@@ -105,6 +108,7 @@ void CLayerSurface::onDestroy() {
     }
 
     m_popupHead.reset();
+    m_subsurfaceHead.reset();
 
     m_noProcess = true;
 
