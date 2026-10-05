@@ -756,6 +756,13 @@ bool CMonitor::applyMonitorRule(SMonitorRule* pMonitorRule, bool force) {
 
     m_pixelSize = m_size;
 
+    // SEKAI: the auto scale above was computed from the previous mode (0x0 on the first apply → always 1x);
+    //  recompute it now that the mode is known
+    if (autoScale) {
+        m_scale    = getDefaultScale();
+        m_setScale = m_scale;
+    }
+
     // clang-format off
     static const std::array<std::vector<std::pair<std::string, uint32_t>>, 2> formats{
         std::vector<std::pair<std::string, uint32_t>>{ /* 10-bit */
@@ -1132,13 +1139,25 @@ float CMonitor::getDefaultScale() {
     const auto              DIAGONALPX = sqrt(pow(m_pixelSize.x, 2) + pow(m_pixelSize.y, 2));
     const auto              DIAGONALIN = sqrt(pow(m_output->physicalSize.x / MMPERINCH, 2) + pow(m_output->physicalSize.y / MMPERINCH, 2));
 
-    const auto              PPI = DIAGONALPX / DIAGONALIN;
+    // SEKAI: TVs, projectors and VMs often report no physical size (0x0) or just an aspect ratio (16x9 mm),
+    //  which made PPI huge and picked 2x on a big screen. Treat anything under 7" as unknown.
+    if (DIAGONALIN < 7.0)
+        return 1;
 
+    const auto PPI = DIAGONALPX / DIAGONALIN;
+
+    float      scale = 1;
     if (PPI > 200 /* High PPI, 2x*/)
-        return 2;
+        scale = 2;
     else if (PPI > 140 /* Medium PPI, 1.5x*/)
-        return 1.5;
-    return 1;
+        scale = 1.5;
+
+    // SEKAI: keep at least 720 logical pixels on the short side (small high-PPI screens like 7-8" handhelds)
+    const double SHORTSIDE = std::min(m_pixelSize.x, m_pixelSize.y);
+    while (scale > 1 && SHORTSIDE / scale < 720)
+        scale -= 0.5;
+
+    return scale;
 }
 
 static bool shouldWraparound(const WORKSPACEID id1, const WORKSPACEID id2) {
