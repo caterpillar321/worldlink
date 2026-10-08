@@ -572,11 +572,13 @@ bool CMonitor::applyMonitorRule(SMonitorRule* pMonitorRule, bool force) {
 
             // Like Windows: keep the preferred (native) resolution but use its highest refresh rate.
             // Faster modes are tried first (highest last, since we test in reverse); the preferred mode stays the fallback.
+            // VGA / analog DVI: EDID mode lists are often unreliable there — keep the preferred mode (like KWin).
+            const bool ANALOG = m_output->name.starts_with("VGA") || m_output->name.starts_with("DVI-A");
+            auto       usable = [](auto const& mode) { return !(mode->modeInfo.has_value() && (mode->modeInfo->flags & DRM_MODE_FLAG_INTERLACE)); };
+
             std::vector<SP<Aquamarine::SOutputMode>> faster;
             for (auto const& mode : m_output->modes) {
-                if (mode->pixelSize != PREF->pixelSize || mode->refreshRate <= PREF->refreshRate + 500)
-                    continue;
-                if (mode->modeInfo.has_value() && (mode->modeInfo->flags & DRM_MODE_FLAG_INTERLACE))
+                if (ANALOG || mode->pixelSize != PREF->pixelSize || mode->refreshRate <= PREF->refreshRate + 500 || !usable(mode))
                     continue;
                 faster.push_back(mode);
             }
@@ -584,6 +586,23 @@ bool CMonitor::applyMonitorRule(SMonitorRule* pMonitorRule, bool force) {
             if (faster.size() > 3)
                 faster.erase(faster.begin(), faster.end() - 3);
             requestedModes.insert(requestedModes.end(), faster.begin(), faster.end());
+
+            // Under 50 Hz at the native resolution (e.g. 4K@30 over HDMI 1.4): a desktop at 30 Hz is unusable —
+            // prefer the largest same-aspect mode that reaches 50 Hz (like KWin), tried first; native stays a fallback.
+            const auto BESTHZ = faster.empty() ? PREF->refreshRate : faster.back()->refreshRate;
+            if (!ANALOG && BESTHZ < 49500 && PREF->pixelSize.y > 0) {
+                const double                ASPECT = PREF->pixelSize.x / PREF->pixelSize.y;
+                SP<Aquamarine::SOutputMode> fluid;
+                for (auto const& mode : m_output->modes) {
+                    if (mode->refreshRate < 49500 || !usable(mode) || mode->pixelSize.y <= 0 || std::abs(mode->pixelSize.x / mode->pixelSize.y - ASPECT) > 0.02)
+                        continue;
+                    if (!fluid || mode->pixelSize.x * mode->pixelSize.y > fluid->pixelSize.x * fluid->pixelSize.y ||
+                        (mode->pixelSize == fluid->pixelSize && mode->refreshRate > fluid->refreshRate))
+                        fluid = mode;
+                }
+                if (fluid)
+                    requestedModes.push_back(fluid);
+            }
         }
     } else if (RULE->resolution == Vector2D(-1, -1)) {
         requestedStr = "highrr";
