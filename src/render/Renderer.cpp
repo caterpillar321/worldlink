@@ -2052,7 +2052,11 @@ void CHyprRenderer::ensureCursorRenderingMode() {
     if (*PCURSORTIMEOUT > 0)
         m_cursorHiddenConditions.hiddenOnTimeout = *PCURSORTIMEOUT < g_pInputManager->m_lastCursorMovement.getSeconds();
 
-    const bool HIDE = m_cursorHiddenConditions.hiddenOnTimeout || m_cursorHiddenConditions.hiddenOnTouch || m_cursorHiddenConditions.hiddenOnKeyboard;
+    if (m_cursorHiddenConditions.hiddenOnStartup && m_cursorHiddenConditions.startup.getSeconds() > 3.F)
+        m_cursorHiddenConditions.hiddenOnStartup = false;
+
+    const bool HIDE = m_cursorHiddenConditions.hiddenOnTimeout || m_cursorHiddenConditions.hiddenOnTouch || m_cursorHiddenConditions.hiddenOnKeyboard ||
+        m_cursorHiddenConditions.hiddenOnStartup;
 
     if (HIDE == m_cursorHidden)
         return;
@@ -2101,6 +2105,13 @@ void CHyprRenderer::setCursorHidden(bool hide) {
         setCursorFromName(m_lastCursorData.name, true);
     else
         setCursorFromName("left_ptr", true);
+}
+
+void CHyprRenderer::setCursorHiddenOnStartup(bool hide) {
+    m_cursorHiddenConditions.hiddenOnStartup = hide;
+    if (hide)
+        m_cursorHiddenConditions.startup.reset();
+    ensureCursorRenderingMode();
 }
 
 bool CHyprRenderer::shouldRenderCursor() {

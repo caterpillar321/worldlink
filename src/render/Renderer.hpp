@@ -65,6 +65,7 @@ class CHyprRenderer {
     void ensureCursorRenderingMode();
     bool shouldRenderCursor();
     void setCursorHidden(bool hide);
+    void setCursorHiddenOnStartup(bool hide); // until cursor:default_monitor connects (capped by a timeout)
     void calculateUVForSurface(PHLWINDOW, SP<CWLSurfaceResource>, PHLMONITOR pMonitor, bool main = false, const Vector2D& projSize = {}, const Vector2D& projSizeUnscaled = {},
                                bool fixMisalignedFSV1 = false);
     std::tuple<float, float, float> getRenderTimes(PHLMONITOR pMonitor); // avg max min
@@ -149,6 +150,8 @@ class CHyprRenderer {
         bool hiddenOnTouch    = false;
         bool hiddenOnTimeout  = false;
         bool hiddenOnKeyboard = false;
+        bool hiddenOnStartup  = false;
+        CTimer startup;
     } m_cursorHiddenConditions;
 
     SP<CRenderbuffer>              getOrCreateRenderbuffer(SP<Aquamarine::IBuffer> buffer, uint32_t fmt);

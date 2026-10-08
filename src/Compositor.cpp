@@ -3120,6 +3120,12 @@ static void checkDefaultCursorWarp(PHLMONITOR monitor) {
         firstLaunch = false;
         g_pCompositor->warpCursorTo(POS, true);
         g_pInputManager->refocus();
+        // the default monitor may connect a moment later (outputs come up one by one, this one already renders) —
+        // keep the cursor hidden until then so it doesn't flash here first
+        if (*PCURSORMONITOR != STRVAL_EMPTY && *PCURSORMONITOR != monitor->m_name)
+            g_pHyprRenderer->setCursorHiddenOnStartup(true);
+        else
+            cursorDefaultDone = true;
         return;
     }
 
@@ -3128,6 +3134,7 @@ static void checkDefaultCursorWarp(PHLMONITOR monitor) {
             cursorDefaultDone = true;
             g_pCompositor->warpCursorTo(POS, true);
             g_pInputManager->refocus();
+            g_pHyprRenderer->setCursorHiddenOnStartup(false);
             return;
         }
     }
