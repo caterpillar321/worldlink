@@ -2052,8 +2052,18 @@ void CHyprRenderer::ensureCursorRenderingMode() {
     if (*PCURSORTIMEOUT > 0)
         m_cursorHiddenConditions.hiddenOnTimeout = *PCURSORTIMEOUT < g_pInputManager->m_lastCursorMovement.getSeconds();
 
-    if (m_cursorHiddenConditions.hiddenOnStartup && m_cursorHiddenConditions.startup.getSeconds() > 3.F)
+    if (m_cursorHiddenConditions.hiddenOnStartup && m_cursorHiddenConditions.startup.getSeconds() > 3.F) {
         m_cursorHiddenConditions.hiddenOnStartup = false;
+        m_cursorHiddenConditions.repaintAll      = 2;
+    }
+
+    // a software cursor drawn before the startup hide stays in a static monitor's last frame
+    // (e.g. the login screen's black side monitor) if the repaint that removed it was dropped — repaint everything again
+    if (m_cursorHiddenConditions.repaintAll > 0) {
+        m_cursorHiddenConditions.repaintAll--;
+        for (auto const& m : g_pCompositor->m_monitors)
+            damageMonitor(m);
+    }
 
     const bool HIDE = m_cursorHiddenConditions.hiddenOnTimeout || m_cursorHiddenConditions.hiddenOnTouch || m_cursorHiddenConditions.hiddenOnKeyboard ||
         m_cursorHiddenConditions.hiddenOnStartup;
@@ -2108,9 +2118,13 @@ void CHyprRenderer::setCursorHidden(bool hide) {
 }
 
 void CHyprRenderer::setCursorHiddenOnStartup(bool hide) {
+    if (hide == m_cursorHiddenConditions.hiddenOnStartup)
+        return;
     m_cursorHiddenConditions.hiddenOnStartup = hide;
     if (hide)
         m_cursorHiddenConditions.startup.reset();
+    else
+        m_cursorHiddenConditions.repaintAll = 2; // now and on the next cursor tick (500 ms)
     ensureCursorRenderingMode();
 }
 

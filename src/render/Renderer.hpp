@@ -152,6 +152,7 @@ class CHyprRenderer {
         bool hiddenOnKeyboard = false;
         bool hiddenOnStartup  = false;
         CTimer startup;
+        int    repaintAll = 0; // full repaints left after the startup hide ends (one may be dropped while a page flip is pending)
     } m_cursorHiddenConditions;
 
     SP<CRenderbuffer>              getOrCreateRenderbuffer(SP<Aquamarine::IBuffer> buffer, uint32_t fmt);
