@@ -567,8 +567,24 @@ bool CMonitor::applyMonitorRule(SMonitorRule* pMonitorRule, bool force) {
             requestedModes.erase(requestedModes.begin() + 3, requestedModes.end());
         std::ranges::reverse(requestedModes.begin(), requestedModes.end());
 
-        if (m_output->preferredMode())
-            requestedModes.push_back(m_output->preferredMode());
+        if (const auto PREF = m_output->preferredMode()) {
+            requestedModes.push_back(PREF);
+
+            // Like Windows: keep the preferred (native) resolution but use its highest refresh rate.
+            // Faster modes are tried first (highest last, since we test in reverse); the preferred mode stays the fallback.
+            std::vector<SP<Aquamarine::SOutputMode>> faster;
+            for (auto const& mode : m_output->modes) {
+                if (mode->pixelSize != PREF->pixelSize || mode->refreshRate <= PREF->refreshRate + 500)
+                    continue;
+                if (mode->modeInfo.has_value() && (mode->modeInfo->flags & DRM_MODE_FLAG_INTERLACE))
+                    continue;
+                faster.push_back(mode);
+            }
+            std::ranges::sort(faster, [](auto const& a, auto const& b) { return a->refreshRate < b->refreshRate; });
+            if (faster.size() > 3)
+                faster.erase(faster.begin(), faster.end() - 3);
+            requestedModes.insert(requestedModes.end(), faster.begin(), faster.end());
+        }
     } else if (RULE->resolution == Vector2D(-1, -1)) {
         requestedStr = "highrr";
 
