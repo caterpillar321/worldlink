@@ -3156,7 +3156,14 @@ bool CConfigManager::shouldUseSoftwareCursors(PHLMONITOR pMonitor) {
     switch (*PNOHW) {
         case 0: return false;
         case 1: return true;
-        case 2: return g_pHyprRenderer->isNvidia() && g_pHyprRenderer->isMgpu();
+        case 2: {
+            if (!g_pHyprRenderer->isNvidia() || !g_pHyprRenderer->isMgpu())
+                return false;
+            // only outputs on another GPU than the renderer need software cursors (cross-GPU cursor planes are what break);
+            // the render GPU's own outputs keep hardware cursors like on a single-GPU system
+            const auto BACKEND = pMonitor->m_output ? pMonitor->m_output->getBackend() : nullptr;
+            return !BACKEND || BACKEND->drmFD() < 0 || BACKEND->drmFD() != g_pCompositor->m_drmFD;
+        }
         default: break;
     }
 
