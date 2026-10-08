@@ -170,6 +170,7 @@ class CPointerManager {
         bool                    entered        = false;
         bool                    hwApplied      = false;
         bool                    cursorRendered = false;
+        int                     hwFailures     = 0; // hardware cursor attempts that failed in a row — 3 and this output stays on software
 
         SP<Aquamarine::IBuffer> cursorFrontBuffer;
     };

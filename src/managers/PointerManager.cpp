@@ -273,7 +273,9 @@ void CPointerManager::updateCursorBackend() {
             continue;
         }
 
-        if (state->softwareLocks > 0 || g_pConfigManager->shouldUseSoftwareCursors(m) || !attemptHardwareCursor(state)) {
+        // an output whose cursor plane keeps refusing (e.g. a secondary GPU that can't import the cursor buffer) stays on
+        // software cursors instead of retrying — and failing, and logging — on every cursor update
+        if (state->softwareLocks > 0 || g_pConfigManager->shouldUseSoftwareCursors(m) || state->hwFailures >= 3 || !attemptHardwareCursor(state)) {
             Debug::log(TRACE, "Output {} rejected hardware cursors, falling back to sw", m->m_name);
             state->box            = getCursorBoxLogicalForMonitor(state->monitor.lock());
             state->hardwareFailed = true;
@@ -352,6 +354,7 @@ bool CPointerManager::attemptHardwareCursor(SP<CPointerManager::SMonitorPointerS
     if (!buffer) {
         Debug::log(TRACE, "[pointer] hw cursor failed rendering");
         setHWCursorBuffer(state, nullptr);
+        state->hwFailures++;
         return false;
     }
 
@@ -360,9 +363,13 @@ bool CPointerManager::attemptHardwareCursor(SP<CPointerManager::SMonitorPointerS
     if (!success) {
         Debug::log(TRACE, "[pointer] hw cursor failed applying, hiding");
         setHWCursorBuffer(state, nullptr);
+        if (++state->hwFailures == 3)
+            Debug::log(LOG, "[pointer] hardware cursors keep failing on {}, using software cursors there", state->monitor->m_name);
         return false;
-    } else
-        state->hwApplied = true;
+    } else {
+        state->hwApplied  = true;
+        state->hwFailures = 0;
+    }
 
     return success;
 }
