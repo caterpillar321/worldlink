@@ -3156,14 +3156,11 @@ bool CConfigManager::shouldUseSoftwareCursors(PHLMONITOR pMonitor) {
     switch (*PNOHW) {
         case 0: return false;
         case 1: return true;
-        case 2: {
-            if (!g_pHyprRenderer->isNvidia() || !g_pHyprRenderer->isMgpu())
-                return false;
-            // only outputs on another GPU than the renderer need software cursors (cross-GPU cursor planes are what break);
-            // the render GPU's own outputs keep hardware cursors like on a single-GPU system
-            const auto BACKEND = pMonitor->m_output ? pMonitor->m_output->getBackend() : nullptr;
-            return !BACKEND || BACKEND->drmFD() < 0 || BACKEND->drmFD() != g_pCompositor->m_drmFD;
-        }
+        // auto: always try hardware cursors first, every output on its own — an output whose cursor plane can't take the buffer
+        // (attemptHardwareCursor fails, e.g. a secondary GPU) falls back to software alone (like mutter / KWin / wlroots).
+        // Upstream forced software cursors on every output for NVIDIA + multi-GPU, which hit every NVIDIA desktop once idle GPUs were
+        // handed to the compositor for monitor hotplug.
+        case 2: return false;
         default: break;
     }
 
