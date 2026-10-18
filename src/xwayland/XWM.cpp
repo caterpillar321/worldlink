@@ -303,6 +303,26 @@ void CXWM::readProp(SP<CXWaylandSurface> XSURF, uint32_t atom, xcb_get_property_
             XSURF->m_sizeHints->max_width = XSURF->m_sizeHints->max_height = -1;
     };
 
+    // SEKAI_X11_CSD: _MOTIF_WM_HINTS {flags, functions, decorations, input_mode, status} — flags 에 MWM_HINTS_DECORATIONS(2)가
+    //   있고 decorations 가 0 이면 제목줄을 앱이 그린다 (RustDesk 같은 Flutter 앱, Chromium·Electron 의 X11 판). 그 창에 막대를
+    //   덧그리면 제목줄이 두 줄이 된다
+    auto handleMotifHints = [&]() {
+        const bool OLD = XSURF->m_sekaiNoDecorations;
+        if (reply->format == 32 && reply->value_len >= 3) {
+            const auto* v                    = (const uint32_t*)value;
+            XSURF->m_sekaiNoDecorations = (v[0] & 2) && v[2] == 0;
+        } else
+            XSURF->m_sekaiNoDecorations = false;
+        if (OLD == XSURF->m_sekaiNoDecorations)
+            return;
+        for (auto const& w : g_pCompositor->m_windows) {
+            if (!w->m_isX11 || w->m_xwaylandSurface != XSURF || !w->m_isMapped)
+                continue;
+            Debug::log(LOG, "[SEKAI_X11_CSD] {} decorations {}", w, XSURF->m_sekaiNoDecorations ? "off (draws its own titlebar)" : "on");
+            w->updateDynamicRules();
+        }
+    };
+
     auto handleWMProtocols = [&]() {
         if (reply->type != XCB_ATOM_ATOM)
             return;
@@ -328,6 +348,8 @@ void CXWM::readProp(SP<CXWaylandSurface> XSURF, uint32_t atom, xcb_get_property_
         handleSizeHints();
     else if (atom == HYPRATOMS["WM_PROTOCOLS"])
         handleWMProtocols();
+    else if (atom == HYPRATOMS["_MOTIF_WM_HINTS"])
+        handleMotifHints();
     else {
         Debug::log(TRACE, "[xwm] Unhandled prop {} -> {}", atom, propName);
         return;
@@ -1116,10 +1138,10 @@ void CXWM::onNewResource(SP<CXWaylandSurfaceResource> resource) {
 }
 
 void CXWM::readWindowData(SP<CXWaylandSurface> surf) {
-    const std::array<xcb_atom_t, 9> interestingProps = {
+    const std::array<xcb_atom_t, 10> interestingProps = {
         XCB_ATOM_WM_CLASS,          XCB_ATOM_WM_NAME,          XCB_ATOM_WM_TRANSIENT_FOR,        HYPRATOMS["WM_HINTS"],
         HYPRATOMS["_NET_WM_STATE"], HYPRATOMS["_NET_WM_NAME"], HYPRATOMS["_NET_WM_WINDOW_TYPE"], HYPRATOMS["WM_NORMAL_HINTS"],
-        HYPRATOMS["WM_PROTOCOLS"],
+        HYPRATOMS["WM_PROTOCOLS"],  HYPRATOMS["_MOTIF_WM_HINTS"], // SEKAI_X11_CSD
     };
 
     for (size_t i = 0; i < interestingProps.size(); i++) {

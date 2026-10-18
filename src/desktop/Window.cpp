@@ -1745,7 +1745,10 @@ bool CWindow::sekaiFixedSize() {
 //   그리면서 그렇다고 알리지 않는다)은 창 영역이 그림자 자리만큼 안쪽에서 시작했는지로 본다. 대화상자도 같다 (GTK4 대화상자는
 //   헤더바를 스스로 그린다). 최대화하면 GTK 가 그림자를 없애 시작점이 0 이 되므로 한 번 본 것을 기억한다
 bool CWindow::sekaiClientDecoration() {
-    if (m_isX11 || !m_xdgSurface || !m_xdgSurface->m_toplevel)
+    // SEKAI_X11_CSD: X11 창은 _MOTIF_WM_HINTS 의 "장식 없음"으로 안다. 대화상자는 Wayland 쪽과 같이 막대를 둔다
+    if (m_isX11)
+        return m_xwaylandSurface && m_xwaylandSurface->m_sekaiNoDecorations && !parent();
+    if (!m_xdgSurface || !m_xdgSurface->m_toplevel)
         return false;
     const auto TL      = m_xdgSurface->m_toplevel;
     const bool XDGDECO = TL->m_sekaiHasXDGDeco;

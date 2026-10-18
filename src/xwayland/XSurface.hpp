@@ -93,6 +93,7 @@ class CXWaylandSurface {
     std::vector<uint32_t>             m_protocols;
     std::string                       m_role      = "";
     bool                              m_transient = false;
+    bool                              m_sekaiNoDecorations = false; // SEKAI_X11_CSD: _MOTIF_WM_HINTS 로 "장식 없음"을 알렸다 (제목줄을 앱이 그림)
 
     bool                              wantsFocus();
     void                              configure(const CBox& box);
