@@ -12,10 +12,11 @@ CServerDecorationKDE::CServerDecorationKDE(SP<COrgKdeKwinServerDecoration> resou
     m_resource->setOnDestroy([this](COrgKdeKwinServerDecoration* pMgr) { PROTO::serverDecorationKDE->destroyResource(this); });
 
     m_surface = surf;
-    // SEKAI_CLIENT_DECO: 앱이 고른 모드를 기억한다 (답은 원본처럼 늘 server — XDGDecoration.cpp 의 설명)
+    // SEKAI_CLIENT_DECO: 앱이 고른 모드를 기억만 한다 — 원본처럼 답하지 않는다 (server 는 만들 때 한 번 보냈다).
+    //   요청마다 server 로 답하면 client 를 원하는 GTK3 창(헤더바 — 파일 탐색기 등)이 그 답을 받고 다시 client 를
+    //   요청해 초당 수만 번 핑퐁하며 앱과 합성기가 쉬지 않고 CPU 를 썼다
     m_resource->setRequestMode([this](COrgKdeKwinServerDecoration*, uint32_t mode) {
         const bool CLIENT = mode == ORG_KDE_KWIN_SERVER_DECORATION_MODE_CLIENT;
-        m_resource->sendMode(ORG_KDE_KWIN_SERVER_DECORATION_MODE_SERVER);
         if (m_sekaiClient == CLIENT)
             return;
         m_sekaiClient = CLIENT;
