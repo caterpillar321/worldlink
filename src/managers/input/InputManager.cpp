@@ -1934,8 +1934,14 @@ uint32_t CInputManager::accumulateModsFromAllKBs() {
 
     uint32_t finalMask = 0;
 
+    // SEKAI_IME_MODS: 입력기(ibus·fcitx)의 가상 키보드는 잡기(grab) 중일 때만 빼던 것을 늘 뺀다 — 입력기가 Win 누름은 넘기고
+    //   뗌은 못 넘긴 채(초점이 글자 칸이 없는 곳 — Win+Shift+T 번호 화면 등으로 옮겨 잡기가 풀림) 그 키보드에 Win 이 눌린 채 남아,
+    //   휠만 굴려도 Win+휠(다음 데스크톱)이 됐다. 뒤의 Hyprland 기본값(virtualkeyboard:share_states = 2, "입력기만 빼고 공유")과 같다
+    const auto IMECLIENT = m_relay.m_inputMethod.expired() ? nullptr : m_relay.m_inputMethod->client();
     for (auto const& kb : m_keyboards) {
         if (kb->isVirtual() && shouldIgnoreVirtualKeyboard(kb))
+            continue;
+        if (kb->isVirtual() && IMECLIENT && ((CVirtualKeyboard*)kb.get())->getClient() == IMECLIENT)
             continue;
 
         if (!kb->m_enabled)
