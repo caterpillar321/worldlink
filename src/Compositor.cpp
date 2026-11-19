@@ -3403,6 +3403,7 @@ void CCompositor::sekaiSetTiled(PHLWINDOW pWindow, bool tiled) {
     if (!tiled) // 타일 칸 가운데에 예전 크기로 펼쳐져 화면 밖으로 삐져나갈 수 있다 (칸이 위쪽·가장자리면)
         sekaiFitFloating(pWindow, false);
     updateAllWindowsAnimatedDecorationValues();
+    sekaiRefreshPointerLater();
 }
 
 void CCompositor::sekaiFitFloating(PHLWINDOW pWindow, bool center) {
@@ -3462,4 +3463,14 @@ void CCompositor::sekaiReapplyWorkspace(PHLWORKSPACE pWorkspace) {
         w->m_sekaiUserFloat = false;
         sekaiApplyTileMode(w);
     }
+}
+
+void CCompositor::sekaiRefreshPointerLater() {
+    // SEKAI_TILE_MONITORS: 방식을 바꾸면 창들이 커서 밑에서 자리를 옮긴다 — 원본은 커서가 다시 움직일 때까지 들어옴·나감을
+    //   다시 알리지 않아, 커서가 떠난 창의 닫기 단추가 빨갛게(마우스 올림) 남았다. 창 움직임(애니메이션)이 끝난 뒤 한 번
+    if (!m_sekaiPointerTimer) {
+        m_sekaiPointerTimer = makeShared<CEventLoopTimer>(std::nullopt, [](SP<CEventLoopTimer> self, void* data) { g_pInputManager->simulateMouseMovement(); }, nullptr);
+        g_pEventLoopManager->addTimer(m_sekaiPointerTimer);
+    }
+    m_sekaiPointerTimer->updateTimeout(std::chrono::milliseconds(550));
 }

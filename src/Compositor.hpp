@@ -20,6 +20,8 @@ enum eManagersInitStage : uint8_t {
     STAGE_LATE
 };
 
+class CEventLoopTimer;
+
 class CCompositor {
   public:
     CCompositor(bool onlyConfig = false);
@@ -156,6 +158,8 @@ class CCompositor {
     void                   sekaiApplyTileMode(PHLWINDOW pWindow);
     void                   sekaiReapplyTileModes();
     void                   sekaiReapplyWorkspace(PHLWORKSPACE pWorkspace); // 데스크톱(작업 공간)이 통째로 다른 모니터로 갔다
+    void                   sekaiRefreshPointerLater(); // 창들이 커서 밑에서 움직였다 — 움직임이 끝난 뒤 커서 자리를 다시 알린다
+    SP<CEventLoopTimer>    m_sekaiPointerTimer;
     void                   onNewMonitor(SP<Aquamarine::IOutput> output);
     void                   ensurePersistentWorkspacesPresent(const std::vector<SWorkspaceRule>& rules, PHLWORKSPACE pWorkspace = nullptr);
 
