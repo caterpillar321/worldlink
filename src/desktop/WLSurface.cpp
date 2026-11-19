@@ -118,22 +118,19 @@ CRegion CWLSurface::computeDamage() const {
 
     const auto     BOX   = getSurfaceBoxGlobal();
 
-    // SEKAI_GEOM_DAMAGE: 창의 주 면은 xdg 창 영역(geometry)만 잘라 창 자리에 그린다 (Renderer calculateUVForSurface) —
-    //   다시 그릴 범위도 같게: 버퍼 → 면 좌표 → 창 영역 시작점만큼 빼고 → 창 영역 크기를 창 크기에 맞춘다.
-    //   원본은 버퍼 전체를 창 크기에 눌러 담아, 그림자를 두는 앱(크롬·VS Code)에선 범위가 그림자 폭만큼 어긋나
-    //   마우스 올림 동그라미가 가장자리만 남았다 (원본은 모든 창에 "최대화됨"을 알려 그림자가 없어 드러나지 않는다)
+    // SEKAI_GEOM_DAMAGE: 창의 주 면에서 앱이 그린 크기(xdg 창 영역)가 창 크기와 다르거나 창 영역이 버퍼 안쪽에서 시작하면
+    //   (타일 창 — 합성기가 정한 칸 크기와 앱이 그린 크기가 몇 px 다르다, 그림자를 두는 크롬·VS Code), 원본의 비율 계산은
+    //   오른쪽·아래로 갈수록 다시 그릴 범위가 어긋나 마우스 올림 동그라미의 가장자리가 남았다 (자유 배치에선 크기가 같아 없었다).
+    //   그런 창은 바뀐 것이 있으면 그 창 전체를 다시 그린다 — 화면 전체가 아니라 그 창만이라 부담은 작다
     if (const auto W = m_windowOwner.lock(); W && BOX.has_value() && !W->m_isX11 && W->m_xdgSurface && W->m_wlSurface && W->m_wlSurface.get() == this &&
-        !m_resource->m_current.viewport.hasSource) {
+        !damage.empty()) {
         const auto G    = W->m_xdgSurface->m_current.geometry;
         const auto SURF = m_resource->m_current.size;
-        const auto BUF  = m_resource->m_current.bufferSize;
-        if (G.width > 0 && G.height > 0 && SURF.x > 0 && SURF.y > 0 && BUF.x > 0 && BUF.y > 0 && (G.x != 0 || G.y != 0 || G.width != SURF.x || G.height != SURF.y)) {
-            damage.scale(SURF / BUF);
-            damage.translate(-G.pos());
-            damage.scale(BOX->size() / G.size());
-            damage.expand(1); // 소수 자리 반올림으로 한 줄이 빠지지 않게
-            return damage;
-        }
+        const bool OFFSET   = G.x != 0 || G.y != 0;
+        const bool MISMATCH = std::abs(G.width - BOX->width) > 0.5 || std::abs(G.height - BOX->height) > 0.5 || std::abs(SURF.x - BOX->width) > 0.5 ||
+            std::abs(SURF.y - BOX->height) > 0.5;
+        if (G.width > 0 && G.height > 0 && (OFFSET || MISMATCH))
+            return CRegion{0, 0, BOX->width, BOX->height};
     }
     const Vector2D SCALE = BOX.has_value() ? BOX->size() / m_resource->m_current.bufferSize :
                                              Vector2D{1.0 / m_resource->m_current.scale, 1.0 / m_resource->m_current.scale /* Wrong... but we can't really do better */};
