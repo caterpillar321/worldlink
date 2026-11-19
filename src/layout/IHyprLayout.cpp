@@ -482,6 +482,10 @@ void IHyprLayout::onEndDragWindow() {
         Vector2D   NEWSIZE = m_draggingWindowOriginalFloatSize;
         if (NEWSIZE.x < 100 || NEWSIZE.y < 100)
             NEWSIZE = OLDSIZE;
+        // 놓은 모니터보다 크면(27인치의 넓은 타일을 24인치에 놓기 등) 작업 영역의 60% 로 — 자리는 그래도 놓은 곳에
+        //   (sekaiFitFloating 은 너무 큰 창을 가운데로 보낸다)
+        if (const CBox A = DRAGGINGWINDOW->sekaiMaximizedBox(); A.w > 0 && (NEWSIZE.x > A.w || NEWSIZE.y > A.h))
+            NEWSIZE = (A.size() * 0.6).round();
         const double RELX = OLDSIZE.x > 0 ? std::clamp((MOUSE.x - OLDPOS.x) / OLDSIZE.x, 0.0, 1.0) : 0.5;
         const double OFFY = std::min(MOUSE.y - OLDPOS.y, NEWSIZE.y / 2.0); // 제목줄을 잡았으면 음수
         const Vector2D POS = Vector2D{MOUSE.x - RELX * NEWSIZE.x, MOUSE.y - OFFY}.round();
