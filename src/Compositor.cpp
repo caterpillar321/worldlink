@@ -3367,8 +3367,12 @@ void CCompositor::sekaiFitFloating(PHLWINDOW pWindow, bool center) {
         return;
     const CBox A    = pWindow->sekaiMaximizedBox(); // 작업 영역에서 제목줄·테두리 몫을 뺀 곳
     Vector2D   size = pWindow->m_realSize->goal();
-    if (size.x < 100 || size.y < 100 || size.x > A.w || size.y > A.h)
-        size = Vector2D{std::min(std::max(size.x, A.w * 0.6), A.w), std::min(std::max(size.y, A.h * 0.6), A.h)};
+    // 떠 있던 크기를 모르는 창(처음부터 타일이던 창)은 작업 영역을 꽉 채운 채 떴다 — 최대화처럼 보였다.
+    //   너무 작거나 작업 영역보다 크면 작업 영역의 60% 로, 가운데에 (윈도우에서 처음 여는 창처럼)
+    if (size.x < 100 || size.y < 100 || size.x > A.w || size.y > A.h) {
+        size   = (A.size() * 0.6).round();
+        center = true;
+    }
     Vector2D pos = center ? A.pos() + (A.size() - size) / 2.0 : pWindow->m_realPosition->goal();
     pos.x        = std::clamp(pos.x, A.x, A.x + A.w - size.x);
     pos.y        = std::clamp(pos.y, A.y, A.y + A.h - size.y);
