@@ -7,6 +7,7 @@
 #include "../render/Renderer.hpp"
 #include "../managers/input/InputManager.hpp"
 #include "LayerSurface.hpp"
+#include "../protocols/XDGShell.hpp" // SEKAI_GEOM_SUBSURFACE: 창 영역(geometry)
 
 UP<CSubsurface> CSubsurface::create(PHLWINDOW pOwner) {
     auto subsurface            = UP<CSubsurface>(new CSubsurface());
