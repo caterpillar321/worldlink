@@ -146,6 +146,13 @@ class CCompositor {
     void                   setPreferredScaleForSurface(SP<CWLSurfaceResource> pSurface, double scale);
     void                   setPreferredTransformForSurface(SP<CWLSurfaceResource> pSurface, wl_output_transform transform);
     void                   updateSuspendedStates();
+    // SEKAI_TILE_MONITORS: 모니터마다 자유 배치/타일링 (general:sekai_tile_monitors)
+    bool                   sekaiMonitorTiled(PHLMONITOR pMonitor);
+    bool                   sekaiWindowMustFloat(PHLWINDOW pWindow); // 대화상자·크기 고정·고정(핀)·딸린 창 — 타일링 모니터에서도 떠 있다
+    bool                   sekaiWantsTiled(PHLWINDOW pWindow, PHLMONITOR pMonitor);
+    void                   sekaiSetTiled(PHLWINDOW pWindow, bool tiled);
+    void                   sekaiApplyTileMode(PHLWINDOW pWindow);
+    void                   sekaiReapplyTileModes();
     void                   onNewMonitor(SP<Aquamarine::IOutput> output);
     void                   ensurePersistentWorkspacesPresent(const std::vector<SWorkspaceRule>& rules, PHLWORKSPACE pWorkspace = nullptr);
 

@@ -1189,6 +1189,8 @@ static SDispatchResult toggleActiveFloatingCore(std::string args, std::optional<
 
         g_pLayoutManager->getCurrentLayout()->changeWindowFloatingMode(PWINDOW);
     }
+    // SEKAI_TILE_MONITORS: 타일링 모니터에서 사용자가 띄운 창 — 설정을 다시 맞출 때 타일로 끌어가지 않는다
+    PWINDOW->m_sekaiUserFloat = PWINDOW->m_isFloating && g_pCompositor->sekaiMonitorTiled(PWINDOW->m_monitor.lock());
 
     if (PWINDOW->m_workspace) {
         PWINDOW->m_workspace->updateWindows();

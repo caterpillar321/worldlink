@@ -638,6 +638,8 @@ CConfigManager::CConfigManager() {
     registerConfigVar("input:natural_scroll", Hyprlang::INT{0});
     registerConfigVar("input:numlock_by_default", Hyprlang::INT{0});
     // SEKAI_A11Y_KEYS: 고정 키 · 필터 키(반복 입력 무시 ms · 누르고 있어야 입력 ms) · Shift 다섯 번/오른쪽 Shift 8초 알림
+    // SEKAI_TILE_MONITORS: 모니터마다 자유 배치/타일링 — 타일링할 모니터 이름 (쉼표로, "*" = 전부, 비면 모두 자유 배치)
+    registerConfigVar("general:sekai_tile_monitors", Hyprlang::STRING{""});
     registerConfigVar("input:sekai_sticky_keys", Hyprlang::INT{0});
     registerConfigVar("input:sekai_bounce_keys", Hyprlang::INT{0});
     registerConfigVar("input:sekai_slow_keys", Hyprlang::INT{0});
@@ -1130,6 +1132,9 @@ Hyprlang::CParseResult CConfigManager::handleMonitorv2() {
 
 void CConfigManager::postConfigReload(const Hyprlang::CParseResult& result) {
     updateWatcher();
+
+    if (!m_isFirstLaunch) // SEKAI_TILE_MONITORS: 모니터 방식이 바뀌었을 수 있다
+        g_pCompositor->sekaiReapplyTileModes();
 
     for (auto const& w : g_pCompositor->m_windows) {
         w->uncacheWindowDecos();

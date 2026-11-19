@@ -2834,6 +2834,23 @@ void CCompositor::moveWindowToWorkspaceSafe(PHLWINDOW pWindow, PHLWORKSPACE pWor
     pWindow->moveToWorkspace(pWorkspace);
     pWindow->m_monitor = pWorkspace->m_monitor;
 
+    // SEKAI_TILE_MONITORS: 다른 모니터로 가면 그 모니터의 방식으로 — 레이아웃에 다시 넣기 전에 정한다
+    bool sekaiNowFloating = false;
+    if (PWORKSPACEMONITOR && SEKAIFROM && SEKAIFROM->m_monitor.lock() != PWORKSPACEMONITOR && !pWorkspace->m_isSpecialWorkspace && !FULLSCREEN &&
+        pWindow->m_groupData.pNextWindow.expired()) {
+        pWindow->m_sekaiUserFloat = false;
+        const bool WANT           = sekaiWantsTiled(pWindow, PWORKSPACEMONITOR);
+        if (WANT && pWindow->m_isFloating) {
+            pWindow->m_lastFloatingSize     = pWindow->m_realSize->goal();
+            pWindow->m_lastFloatingPosition = pWindow->m_realPosition->goal();
+            pWindow->m_sekaiMaximized       = false;
+            pWindow->m_isFloating           = false;
+        } else if (!WANT && !pWindow->m_isFloating) {
+            pWindow->m_isFloating = true;
+            sekaiNowFloating      = true;
+        }
+    }
+
     static auto PGROUPONMOVETOWORKSPACE = CConfigValue<Hyprlang::INT>("group:group_on_movetoworkspace");
     if (*PGROUPONMOVETOWORKSPACE && visibleWindowsOnWorkspace == 1 && pFirstWindowOnWorkspace && pFirstWindowOnWorkspace != pWindow &&
         pFirstWindowOnWorkspace->m_groupData.pNextWindow.lock() && pWindow->canBeGroupedInto(pFirstWindowOnWorkspace)) {
@@ -2863,6 +2880,19 @@ void CCompositor::moveWindowToWorkspaceSafe(PHLWINDOW pWindow, PHLWORKSPACE pWor
 
         if (pWindow->m_isFloating)
             *pWindow->m_realPosition = POSTOMON + PWORKSPACEMONITOR->m_position;
+        if (sekaiNowFloating) { // SEKAI_TILE_MONITORS: 타일이던 창 — 예전 떠 있던 크기로, 그 모니터 안 가운데쯤
+            const auto MS   = PWORKSPACEMONITOR->m_size;
+            Vector2D   size = pWindow->m_lastFloatingSize;
+            if (size.x < 100 || size.y < 100 || size.x > MS.x || size.y > MS.y)
+                size = MS * 0.6;
+            const Vector2D pos = PWORKSPACEMONITOR->m_position + (MS - size) / 2.0;
+            *pWindow->m_realSize     = size;
+            *pWindow->m_realPosition = pos;
+            pWindow->m_size          = size;
+            pWindow->m_position      = pos;
+            pWindow->sendWindowSize(true);
+            updateAllWindowsAnimatedDecorationValues();
+        }
     }
 
     pWindow->updateToplevel();
@@ -3276,4 +3306,76 @@ void CCompositor::ensurePersistentWorkspacesPresent(const std::vector<SWorkspace
 
     // cleanup old
     sanityCheckWorkspaces();
+}
+
+// ── SEKAI_TILE_MONITORS: 모니터마다 자유 배치/타일링 ──────────────────────────────
+//   general:sekai_tile_monitors = "DP-1,HDMI-A-1" (모니터 이름·설명, "*" = 전부). 비면 SekaiOS 기본 — 모두 자유 배치.
+//   타일 엔진은 원래 Hyprland 의 dwindle 그대로. 셸·설정 앱은 hyprctl keyword 로 바꾼다
+bool CCompositor::sekaiMonitorTiled(PHLMONITOR pMonitor) {
+    static auto PTILE = CConfigValue<std::string>("general:sekai_tile_monitors");
+    if (!pMonitor)
+        return false;
+    const std::string LIST = *PTILE;
+    if (LIST.empty())
+        return false;
+    if (LIST == "*" || LIST == "all")
+        return true;
+    CVarList names(LIST, 0, ',', true);
+    for (auto const& n : names) {
+        if (n == pMonitor->m_name || n == pMonitor->m_description || n == "desc:" + pMonitor->m_description)
+            return true;
+    }
+    return false;
+}
+
+bool CCompositor::sekaiWindowMustFloat(PHLWINDOW pWindow) {
+    if (!pWindow)
+        return true;
+    if (pWindow->m_pinned || pWindow->m_requestsFloat || pWindow->isX11OverrideRedirect() || pWindow->parent() || pWindow->sekaiFixedSize())
+        return true;
+    if (pWindow->m_workspace && pWindow->m_workspace->m_isSpecialWorkspace)
+        return true;
+    return g_pXWaylandManager->shouldBeFloated(pWindow);
+}
+
+bool CCompositor::sekaiWantsTiled(PHLWINDOW pWindow, PHLMONITOR pMonitor) {
+    return pWindow && sekaiMonitorTiled(pMonitor) && !pWindow->m_sekaiUserFloat && !sekaiWindowMustFloat(pWindow);
+}
+
+void CCompositor::sekaiSetTiled(PHLWINDOW pWindow, bool tiled) {
+    if (!pWindow || !pWindow->m_isMapped || tiled == !pWindow->m_isFloating || pWindow->isFullscreen())
+        return;
+    if (!pWindow->m_groupData.pNextWindow.expired())
+        return; // 묶음(탭) 창은 건드리지 않는다
+    if (tiled && pWindow->m_sekaiMaximized)
+        pWindow->sekaiSetMaximized(false);
+    if (!g_pInputManager->m_currentlyDraggedWindow.expired() && g_pInputManager->m_currentlyDraggedWindow.lock() == pWindow)
+        g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+    pWindow->m_isFloating = !tiled;
+    g_pLayoutManager->getCurrentLayout()->changeWindowFloatingMode(pWindow);
+    if (pWindow->m_workspace) {
+        pWindow->m_workspace->updateWindows();
+        pWindow->m_workspace->updateWindowData();
+    }
+    g_pLayoutManager->getCurrentLayout()->recalculateMonitor(pWindow->monitorID());
+    updateAllWindowsAnimatedDecorationValues();
+}
+
+void CCompositor::sekaiApplyTileMode(PHLWINDOW pWindow) {
+    if (!pWindow || !pWindow->m_isMapped || pWindow->m_sekaiMinimized || pWindow->isHidden())
+        return;
+    sekaiSetTiled(pWindow, sekaiWantsTiled(pWindow, pWindow->m_monitor.lock()));
+}
+
+void CCompositor::sekaiReapplyTileModes() {
+    std::vector<PHLWINDOW> wins;
+    for (auto const& w : m_windows) {
+        if (w->m_isMapped && !w->m_sekaiMinimized && w->m_workspace && !w->m_workspace->m_isSpecialWorkspace)
+            wins.emplace_back(w);
+    }
+    for (auto const& w : wins) {
+        if (!sekaiMonitorTiled(w->m_monitor.lock()))
+            w->m_sekaiUserFloat = false; // 자유 배치로 돌아가면 "이 창만 띄움" 기억도 지운다
+        sekaiApplyTileMode(w);
+    }
 }

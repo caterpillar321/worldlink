@@ -434,6 +434,11 @@ void Events::listener_mapWindow(void* owner, void* data) {
     if (PWORKSPACE->m_defaultFloating)
         PWINDOW->m_isFloating = true;
 
+    // SEKAI_TILE_MONITORS: 타일링 모니터에 뜨는 창은 타일로 (모든 창을 띄우는 규칙 float, class:.* 보다 나중에) —
+    //   대화상자·크기 고정·딸린 창·고정(핀)은 그대로 떠 있다
+    if (!PWORKSPACE->m_isSpecialWorkspace && !PWORKSPACE->m_defaultFloating && g_pCompositor->sekaiWantsTiled(PWINDOW, PMONITOR))
+        PWINDOW->m_isFloating = false;
+
     if (PWORKSPACE->m_defaultPseudo) {
         PWINDOW->m_isPseudotiled = true;
         CBox desiredGeometry     = g_pXWaylandManager->getGeometryForWindow(PWINDOW);

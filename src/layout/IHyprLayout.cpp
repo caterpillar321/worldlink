@@ -249,6 +249,7 @@ void IHyprLayout::onBeginDragWindow() {
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
         return;
     }
+    m_sekaiDragStartMonitor = DRAGGINGWINDOW->m_monitor; // SEKAI_TILE_MONITORS
 
     // SEKAI_DRAG_CANCEL: 끌기 전 상태를 적어 둔다 (Esc 로 되돌릴 자리)
     m_sekaiCancelPos     = DRAGGINGWINDOW->m_realPosition->goal();
@@ -497,6 +498,13 @@ void IHyprLayout::onEndDragWindow() {
             changeWindowFloatingMode(DRAGGINGWINDOW);
 
         DRAGGINGWINDOW->m_lastFloatingSize = m_draggingWindowOriginalFloatSize;
+    }
+
+    // SEKAI_TILE_MONITORS: 다른 모니터에 놓았으면 그 모니터의 방식(자유 배치/타일링)으로 — 타일링 모니터에 놓으면
+    //   놓은 자리 근처 칸에(dwindle 은 커서 자리로 나눌 곳을 고른다), 자유 배치 모니터에 놓으면 놓은 자리에 떠서
+    if (g_pInputManager->m_dragMode == MBIND_MOVE && validMapped(DRAGGINGWINDOW) && DRAGGINGWINDOW->m_monitor != m_sekaiDragStartMonitor) {
+        DRAGGINGWINDOW->m_sekaiUserFloat = false;
+        g_pCompositor->sekaiApplyTileMode(DRAGGINGWINDOW);
     }
 
     g_pHyprRenderer->damageWindow(DRAGGINGWINDOW);

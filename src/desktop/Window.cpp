@@ -1983,8 +1983,16 @@ void CWindow::sekaiRefitMaximized() {
 }
 
 void CWindow::sekaiSetMaximized(bool on) {
-    if (!m_isMapped || !m_isFloating)
-        return; // SekaiOS 의 창은 모두 떠 있다 — 바둑판(타일) 창은 다루지 않는다
+    if (!m_isMapped)
+        return;
+    if (!m_isFloating) {
+        // SEKAI_TILE_MONITORS: 타일 창의 최대화 = 타일링식 최대화(그 칸이 모니터 작업 영역을 꽉 채운다, 다른 칸은 뒤에 그대로)
+        const auto SELF = m_self.lock();
+        if (on != (m_fullscreenState.internal == FSMODE_MAXIMIZED))
+            g_pCompositor->setWindowFullscreenInternal(SELF, on ? FSMODE_MAXIMIZED : FSMODE_NONE);
+        sekaiSendMaximizedState();
+        return;
+    }
     const auto SELF = m_self.lock();
     if (on && sekaiFixedSize()) { // SEKAI_FIXED_SIZE: 크기를 못 바꾸는 창은 최대화하지 않는다 — 요청한 앱에 "안 됐다"고
         Debug::log(LOG, "[sekai] 크기 고정 창은 최대화하지 않는다: {}", SELF);
@@ -2052,6 +2060,11 @@ void CWindow::sekaiSetMinimized(bool on) {
             return;
         }
     }
+    // SEKAI_TILE_MONITORS: 타일 창을 숨기면 칸을 비워 다른 창이 채우게 — 되살리면 다시 타일로
+    if (on && !m_isFloating && m_groupData.pNextWindow.expired()) {
+        m_sekaiTiledBeforeMin = true;
+        g_pCompositor->sekaiSetTiled(SELF, false);
+    }
     m_sekaiMinimized = on;
     // 딸린 창(대화상자)도 함께 — "저장할까요?" 창만 바탕화면에 남지 않게 (윈도우처럼)
     for (auto const& w : g_pCompositor->m_windows) {
@@ -2065,6 +2078,10 @@ void CWindow::sekaiSetMinimized(bool on) {
             g_pCompositor->focusWindow(g_pLayoutManager->getCurrentLayout()->getNextWindowCandidate(SELF));
     } else {
         setHidden(false);
+        if (m_sekaiTiledBeforeMin) { // SEKAI_TILE_MONITORS
+            m_sekaiTiledBeforeMin = false;
+            g_pCompositor->sekaiApplyTileMode(SELF);
+        }
         sekaiRefitMaximized(); // SEKAI_MAXIMIZE2: 숨어 있는 동안 작업 표시줄·모니터가 바뀌었을 수 있다
         g_pCompositor->changeWindowZOrder(SELF, true);
     }

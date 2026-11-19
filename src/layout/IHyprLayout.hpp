@@ -230,6 +230,7 @@ class IHyprLayout {
   private:
     int          m_mouseMoveEventCount;
     bool         m_sekaiForceDragUpdate = false; // SEKAI_DRAG_FINAL: 놓는 순간엔 건너뛰지 않고 마지막 자리를 반영
+    PHLMONITORREF m_sekaiDragStartMonitor;       // SEKAI_TILE_MONITORS: 끌기를 시작한 모니터 — 다른 모니터에 놓으면 그 모니터 방식으로
     Vector2D     m_sekaiCancelPos, m_sekaiCancelSize;   // SEKAI_DRAG_CANCEL: 끌기 전 자리·크기
     bool         m_sekaiCancelFS       = false;         //   끌기 전에 전체 화면이었나
     bool         m_sekaiCancelMax      = false;         //   SEKAI_MAXIMIZE2: 끌기 전에 최대화였나 (창의 상태)
