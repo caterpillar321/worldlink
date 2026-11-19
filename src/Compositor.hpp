@@ -155,6 +155,7 @@ class CCompositor {
     void                   sekaiFitFloating(PHLWINDOW pWindow, bool center); // 타일에서 풀린 창을 모니터 작업 영역 안으로
     void                   sekaiApplyTileMode(PHLWINDOW pWindow);
     void                   sekaiReapplyTileModes();
+    void                   sekaiReapplyWorkspace(PHLWORKSPACE pWorkspace); // 데스크톱(작업 공간)이 통째로 다른 모니터로 갔다
     void                   onNewMonitor(SP<Aquamarine::IOutput> output);
     void                   ensurePersistentWorkspacesPresent(const std::vector<SWorkspaceRule>& rules, PHLWORKSPACE pWorkspace = nullptr);
 

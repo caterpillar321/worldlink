@@ -2098,6 +2098,9 @@ void CCompositor::swapActiveWorkspaces(PHLMONITOR pMonitorA, PHLMONITOR pMonitor
     g_pEventManager->postEvent(SHyprIPCEvent{.event = "moveworkspacev2", .data = std::format("{},{},{}", PWORKSPACEB->m_id, PWORKSPACEB->m_name, pMonitorA->m_name)});
 
     EMIT_HOOK_EVENT("moveWorkspace", (std::vector<std::any>{PWORKSPACEB, pMonitorA}));
+
+    sekaiReapplyWorkspace(PWORKSPACEA); // SEKAI_TILE_MONITORS
+    sekaiReapplyWorkspace(PWORKSPACEB);
 }
 
 PHLMONITOR CCompositor::getMonitorFromString(const std::string& name) {
@@ -2302,6 +2305,8 @@ void CCompositor::moveWorkspaceToMonitor(PHLWORKSPACE pWorkspace, PHLMONITOR pMo
     g_pEventManager->postEvent(SHyprIPCEvent{.event = "moveworkspace", .data = pWorkspace->m_name + "," + pMonitor->m_name});
     g_pEventManager->postEvent(SHyprIPCEvent{.event = "moveworkspacev2", .data = std::format("{},{},{}", pWorkspace->m_id, pWorkspace->m_name, pMonitor->m_name)});
     EMIT_HOOK_EVENT("moveWorkspace", (std::vector<std::any>{pWorkspace, pMonitor}));
+
+    sekaiReapplyWorkspace(pWorkspace); // SEKAI_TILE_MONITORS
 }
 
 bool CCompositor::workspaceIDOutOfBounds(const WORKSPACEID& id) {
@@ -3351,7 +3356,26 @@ void CCompositor::sekaiSetTiled(PHLWINDOW pWindow, bool tiled) {
     if (!g_pInputManager->m_currentlyDraggedWindow.expired() && g_pInputManager->m_currentlyDraggedWindow.lock() == pWindow)
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
     pWindow->m_isFloating = !tiled;
-    g_pLayoutManager->getCurrentLayout()->changeWindowFloatingMode(pWindow);
+    if (tiled) {
+        // 떠 있던 창 → 타일: 원본(changeWindowFloatingMode)은 창 밑 모니터의 "보이는" 작업 공간으로 창을 옮긴 뒤 넣는다 —
+        //   숨은 데스크톱의 창이 타일링을 켜는 순간 지금 화면으로 끌려왔다. 제 작업 공간 그대로 타일에 넣는다 (나머지는 원본과 같게)
+        g_pHyprRenderer->damageWindow(pWindow, true);
+        g_pEventManager->postEvent(SHyprIPCEvent{"changefloatingmode", std::format("{:x},{}", (uintptr_t)pWindow.get(), 1)});
+        EMIT_HOOK_EVENT("changeFloatingMode", pWindow);
+        pWindow->m_pinned = false;
+        const auto PSAVEDPOS  = pWindow->m_realPosition->goal();
+        const auto PSAVEDSIZE = pWindow->m_realSize->goal();
+        pWindow->m_pseudoSize       = PSAVEDSIZE;
+        pWindow->m_lastFloatingSize = PSAVEDSIZE;
+        pWindow->m_position         = Vector2D(-999999, -999999); // 제 노드를 찾지 않게 (원본과 같은 꾀)
+        g_pLayoutManager->getCurrentLayout()->onWindowCreatedTiling(pWindow);
+        pWindow->m_realPosition->setValue(PSAVEDPOS);
+        pWindow->m_realSize->setValue(PSAVEDSIZE);
+        updateWindowAnimatedDecorationValues(pWindow);
+        pWindow->updateToplevel();
+        g_pHyprRenderer->damageWindow(pWindow);
+    } else
+        g_pLayoutManager->getCurrentLayout()->changeWindowFloatingMode(pWindow);
     if (pWindow->m_workspace) {
         pWindow->m_workspace->updateWindows();
         pWindow->m_workspace->updateWindowData();
@@ -3401,6 +3425,22 @@ void CCompositor::sekaiReapplyTileModes() {
     for (auto const& w : wins) {
         if (!sekaiMonitorTiled(w->m_monitor.lock()))
             w->m_sekaiUserFloat = false; // 자유 배치로 돌아가면 "이 창만 띄움" 기억도 지운다
+        sekaiApplyTileMode(w);
+    }
+}
+
+void CCompositor::sekaiReapplyWorkspace(PHLWORKSPACE pWorkspace) {
+    // SEKAI_TILE_MONITORS: 데스크톱 전환이 작업 공간을 통째로 다른 모니터로 옮긴다 (sekai-ctl desktop go/move, 모니터 맞바꾸기) —
+    //   창 하나씩 옮길 때(moveWindowToWorkspaceSafe)만 맞추면 떠 있는 창이 타일링 모니터에, 타일이 자유 배치 모니터에 남았다
+    if (!pWorkspace || pWorkspace->m_isSpecialWorkspace || !sekaiTileActive())
+        return;
+    std::vector<PHLWINDOW> wins;
+    for (auto const& w : m_windows) {
+        if (w->m_workspace == pWorkspace && w->m_isMapped && !w->m_pinned && !w->m_sekaiMinimized)
+            wins.emplace_back(w);
+    }
+    for (auto const& w : wins) {
+        w->m_sekaiUserFloat = false;
         sekaiApplyTileMode(w);
     }
 }
