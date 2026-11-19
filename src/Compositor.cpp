@@ -2836,7 +2836,7 @@ void CCompositor::moveWindowToWorkspaceSafe(PHLWINDOW pWindow, PHLWORKSPACE pWor
 
     // SEKAI_TILE_MONITORS: 다른 모니터로 가면 그 모니터의 방식으로 — 레이아웃에 다시 넣기 전에 정한다
     bool sekaiNowFloating = false;
-    if (PWORKSPACEMONITOR && SEKAIFROM && SEKAIFROM->m_monitor.lock() != PWORKSPACEMONITOR && !pWorkspace->m_isSpecialWorkspace && !FULLSCREEN &&
+    if (sekaiTileActive() && PWORKSPACEMONITOR && SEKAIFROM && SEKAIFROM->m_monitor.lock() != PWORKSPACEMONITOR && !pWorkspace->m_isSpecialWorkspace && !FULLSCREEN &&
         pWindow->m_groupData.pNextWindow.expired()) {
         pWindow->m_sekaiUserFloat = false;
         const bool WANT           = sekaiWantsTiled(pWindow, PWORKSPACEMONITOR);
@@ -3302,6 +3302,12 @@ void CCompositor::ensurePersistentWorkspacesPresent(const std::vector<SWorkspace
 // ── SEKAI_TILE_MONITORS: 모니터마다 자유 배치/타일링 ──────────────────────────────
 //   general:sekai_tile_monitors = "DP-1,HDMI-A-1" (모니터 이름·설명, "*" = 전부). 비면 SekaiOS 기본 — 모두 자유 배치.
 //   타일 엔진은 원래 Hyprland 의 dwindle 그대로. 셸·설정 앱은 hyprctl keyword 로 바꾼다
+bool CCompositor::sekaiTileActive() {
+    // "" = 기능 꺼짐(원본과 같음), "none" = 켜짐·타일링 모니터 없음(SekaiOS 가 모두 자유 배치로 되돌릴 때)
+    static auto PTILE = CConfigValue<std::string>("general:sekai_tile_monitors");
+    return !std::string{*PTILE}.empty();
+}
+
 bool CCompositor::sekaiMonitorTiled(PHLMONITOR pMonitor) {
     static auto PTILE = CConfigValue<std::string>("general:sekai_tile_monitors");
     if (!pMonitor)
@@ -3377,7 +3383,7 @@ void CCompositor::sekaiFitFloating(PHLWINDOW pWindow, bool center) {
 }
 
 void CCompositor::sekaiApplyTileMode(PHLWINDOW pWindow) {
-    if (!pWindow || !pWindow->m_isMapped || pWindow->m_sekaiMinimized || pWindow->isHidden())
+    if (!sekaiTileActive() || !pWindow || !pWindow->m_isMapped || pWindow->m_sekaiMinimized || pWindow->isHidden())
         return;
     sekaiSetTiled(pWindow, sekaiWantsTiled(pWindow, pWindow->m_monitor.lock()));
 }

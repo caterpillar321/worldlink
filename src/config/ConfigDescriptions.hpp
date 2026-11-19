@@ -402,6 +402,37 @@ inline static const std::vector<SConfigOptionDescription> CONFIG_OPTIONS = {
         .type        = CONFIG_OPTION_STRING_SHORT,
         .data        = SConfigOptionDescription::SStringData{STRVAL_EMPTY},
     },
+    /* SekaiOS (WorldLink) — 원본에 없는 설정값. 원본의 시험(hyprtester plugin)이 "설정값 수 = 설명 수"를 확인한다 */
+    SConfigOptionDescription{
+        .value       = "general:sekai_tile_monitors",
+        .description = "Monitors (names or descriptions, comma separated, * for all) whose windows are tiled; others stay floating",
+        .type        = CONFIG_OPTION_STRING_LONG,
+        .data        = SConfigOptionDescription::SStringData{""},
+    },
+    SConfigOptionDescription{
+        .value       = "input:sekai_sticky_keys",
+        .description = "Sticky keys: modifiers stay pressed until the next key (accessibility)",
+        .type        = CONFIG_OPTION_BOOL,
+        .data        = SConfigOptionDescription::SBoolData{false},
+    },
+    SConfigOptionDescription{
+        .value       = "input:sekai_bounce_keys",
+        .description = "Bounce keys: ignore repeated presses of the same key within this many ms (0 = off)",
+        .type        = CONFIG_OPTION_INT,
+        .data        = SConfigOptionDescription::SRangeData{0, 0, 2000},
+    },
+    SConfigOptionDescription{
+        .value       = "input:sekai_slow_keys",
+        .description = "Slow keys: a key must be held this many ms before it counts (0 = off)",
+        .type        = CONFIG_OPTION_INT,
+        .data        = SConfigOptionDescription::SRangeData{0, 0, 2000},
+    },
+    SConfigOptionDescription{
+        .value       = "input:sekai_a11y_shortcuts",
+        .description = "Allow the keyboard shortcuts that turn sticky/filter keys on (Shift x5, hold right Shift 8 s)",
+        .type        = CONFIG_OPTION_BOOL,
+        .data        = SConfigOptionDescription::SBoolData{true},
+    },
     SConfigOptionDescription{
         .value       = "input:kb_layout",
         .description = "Appropriate XKB keymap parameter",

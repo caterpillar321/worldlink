@@ -1107,6 +1107,21 @@ Vector2D IHyprLayout::predictSizeForNewWindow(PHLWINDOW pWindow) {
         }
     }
 
+    // SEKAI_TILE_MONITORS: SekaiOS 는 모든 창을 띄우는 규칙(float, class:.*)을 쓴다 — 타일링 모니터에 뜰 창도 "떠 있을 창"으로
+    //   예측돼 앱이 제 크기로 먼저 그렸다가 칸 크기로 바뀌었다(여는 애니메이션이 원본과 다르고, 띄울 때 크기도 앱 크기가 됨).
+    //   창이 뜰 때(events/Windows.cpp)와 같은 판단으로 칸 크기를 미리 알린다. 대화상자·크기 고정·sekaifloat 태그는 그대로
+    if (shouldBeFloated && g_pCompositor->sekaiTileActive() && !g_pXWaylandManager->shouldBeFloated(pWindow, true) && !pWindow->parent() &&
+        !pWindow->sekaiFixedSize()) {
+        bool tagFloat = false;
+        for (auto const& r : g_pConfigManager->getMatchingRules(pWindow, true, true)) {
+            if (r->m_ruleType == CWindowRule::RULE_TAG && r->m_rule.contains("sekaifloat"))
+                tagFloat = true;
+        }
+        const auto MON = g_pCompositor->m_lastMonitor.lock(); // 새 창은 초점이 있는 모니터에 뜬다
+        if (!tagFloat && MON && g_pCompositor->sekaiMonitorTiled(MON))
+            shouldBeFloated = false;
+    }
+
     Vector2D sizePredicted = {};
 
     if (!shouldBeFloated)

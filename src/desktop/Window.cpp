@@ -2083,7 +2083,10 @@ void CWindow::sekaiSetMinimized(bool on) {
         setHidden(false);
         if (m_sekaiTiledBeforeMin) { // SEKAI_TILE_MONITORS
             m_sekaiTiledBeforeMin = false;
-            g_pCompositor->sekaiApplyTileMode(SELF);
+            if (g_pCompositor->sekaiTileActive())
+                g_pCompositor->sekaiApplyTileMode(SELF);
+            else
+                g_pCompositor->sekaiSetTiled(SELF, true); // 기능이 꺼져 있으면 숨기기 전 그대로 (타일이었으면 타일로)
         }
         sekaiRefitMaximized(); // SEKAI_MAXIMIZE2: 숨어 있는 동안 작업 표시줄·모니터가 바뀌었을 수 있다
         g_pCompositor->changeWindowZOrder(SELF, true);

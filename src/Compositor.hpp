@@ -147,6 +147,7 @@ class CCompositor {
     void                   setPreferredTransformForSurface(SP<CWLSurfaceResource> pSurface, wl_output_transform transform);
     void                   updateSuspendedStates();
     // SEKAI_TILE_MONITORS: 모니터마다 자유 배치/타일링 (general:sekai_tile_monitors)
+    bool                   sekaiTileActive(); // 설정이 비면 꺼짐 — 원본 Hyprland 와 똑같이 (모니터를 옮겨도 띄우거나 타일로 바꾸지 않는다)
     bool                   sekaiMonitorTiled(PHLMONITOR pMonitor);
     bool                   sekaiWindowMustFloat(PHLWINDOW pWindow); // 대화상자·크기 고정·고정(핀)·딸린 창 — 타일링 모니터에서도 떠 있다
     bool                   sekaiWantsTiled(PHLWINDOW pWindow, PHLMONITOR pMonitor);
