@@ -3324,8 +3324,15 @@ bool CCompositor::sekaiMonitorTiled(PHLMONITOR pMonitor) {
         return true;
     CVarList names(LIST, 0, ',', true);
     for (auto const& n : names) {
-        if (n == pMonitor->m_name || n == pMonitor->m_description || n == "desc:" + pMonitor->m_description)
+        if (n == pMonitor->m_name || n == pMonitor->m_shortDescription || n == pMonitor->m_description)
             return true;
+        // "desc:제조사 모델 일련번호" — 원본 모니터 규칙(desc:)처럼 긴 설명의 앞부분과 견준다. hyprctl·설정 앱이 보는 건 짧은 설명
+        //   (긴 설명엔 끝에 "(DP-4)" 같은 단자 이름이 붙는다 — 그래서 예전엔 아무 모니터도 맞지 않았다)
+        if (n.starts_with("desc:")) {
+            const auto D = trim(n.substr(5));
+            if (!D.empty() && (D == pMonitor->m_shortDescription || pMonitor->m_description.starts_with(D)))
+                return true;
+        }
     }
     return false;
 }
