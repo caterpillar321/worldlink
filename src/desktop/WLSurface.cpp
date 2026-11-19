@@ -4,6 +4,7 @@
 #include "../protocols/core/Compositor.hpp"
 #include "../protocols/LayerShell.hpp"
 #include "../render/Renderer.hpp"
+#include "../protocols/XDGShell.hpp" // SEKAI_GEOM_DAMAGE: 창 영역(geometry)
 
 void CWLSurface::assign(SP<CWLSurfaceResource> pSurface) {
     m_resource = pSurface;
@@ -116,6 +117,24 @@ CRegion CWLSurface::computeDamage() const {
     // go from buffer coords in the damage to hl logical
 
     const auto     BOX   = getSurfaceBoxGlobal();
+
+    // SEKAI_GEOM_DAMAGE: 창의 주 면은 xdg 창 영역(geometry)만 잘라 창 자리에 그린다 (Renderer calculateUVForSurface) —
+    //   다시 그릴 범위도 같게: 버퍼 → 면 좌표 → 창 영역 시작점만큼 빼고 → 창 영역 크기를 창 크기에 맞춘다.
+    //   원본은 버퍼 전체를 창 크기에 눌러 담아, 그림자를 두는 앱(크롬·VS Code)에선 범위가 그림자 폭만큼 어긋나
+    //   마우스 올림 동그라미가 가장자리만 남았다 (원본은 모든 창에 "최대화됨"을 알려 그림자가 없어 드러나지 않는다)
+    if (const auto W = m_windowOwner.lock(); W && BOX.has_value() && !W->m_isX11 && W->m_xdgSurface && W->m_wlSurface && W->m_wlSurface.get() == this &&
+        !m_resource->m_current.viewport.hasSource) {
+        const auto G    = W->m_xdgSurface->m_current.geometry;
+        const auto SURF = m_resource->m_current.size;
+        const auto BUF  = m_resource->m_current.bufferSize;
+        if (G.width > 0 && G.height > 0 && SURF.x > 0 && SURF.y > 0 && BUF.x > 0 && BUF.y > 0 && (G.x != 0 || G.y != 0 || G.width != SURF.x || G.height != SURF.y)) {
+            damage.scale(SURF / BUF);
+            damage.translate(-G.pos());
+            damage.scale(BOX->size() / G.size());
+            damage.expand(1); // 소수 자리 반올림으로 한 줄이 빠지지 않게
+            return damage;
+        }
+    }
     const Vector2D SCALE = BOX.has_value() ? BOX->size() / m_resource->m_current.bufferSize :
                                              Vector2D{1.0 / m_resource->m_current.scale, 1.0 / m_resource->m_current.scale /* Wrong... but we can't really do better */};
 
