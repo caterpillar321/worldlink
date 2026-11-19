@@ -2880,18 +2880,9 @@ void CCompositor::moveWindowToWorkspaceSafe(PHLWINDOW pWindow, PHLWORKSPACE pWor
 
         if (pWindow->m_isFloating)
             *pWindow->m_realPosition = POSTOMON + PWORKSPACEMONITOR->m_position;
-        if (sekaiNowFloating) { // SEKAI_TILE_MONITORS: 타일이던 창 — 예전 떠 있던 크기로, 그 모니터 안 가운데쯤
-            const auto MS   = PWORKSPACEMONITOR->m_size;
-            Vector2D   size = pWindow->m_lastFloatingSize;
-            if (size.x < 100 || size.y < 100 || size.x > MS.x || size.y > MS.y)
-                size = MS * 0.6;
-            const Vector2D pos = PWORKSPACEMONITOR->m_position + (MS - size) / 2.0;
-            *pWindow->m_realSize     = size;
-            *pWindow->m_realPosition = pos;
-            pWindow->m_size          = size;
-            pWindow->m_position      = pos;
-            pWindow->sendWindowSize(true);
-            updateAllWindowsAnimatedDecorationValues();
+        if (sekaiNowFloating) { // SEKAI_TILE_MONITORS: 타일이던 창 — 예전 떠 있던 크기로, 그 모니터 작업 영역 가운데
+            *pWindow->m_realSize = pWindow->m_lastFloatingSize;
+            sekaiFitFloating(pWindow, true);
         }
     }
 
@@ -3360,7 +3351,29 @@ void CCompositor::sekaiSetTiled(PHLWINDOW pWindow, bool tiled) {
         pWindow->m_workspace->updateWindowData();
     }
     g_pLayoutManager->getCurrentLayout()->recalculateMonitor(pWindow->monitorID());
+    if (!tiled) // 타일 칸 가운데에 예전 크기로 펼쳐져 화면 밖으로 삐져나갈 수 있다 (칸이 위쪽·가장자리면)
+        sekaiFitFloating(pWindow, false);
     updateAllWindowsAnimatedDecorationValues();
+}
+
+void CCompositor::sekaiFitFloating(PHLWINDOW pWindow, bool center) {
+    if (!pWindow || !pWindow->m_isFloating || !pWindow->m_monitor.lock())
+        return;
+    const CBox A    = pWindow->sekaiMaximizedBox(); // 작업 영역에서 제목줄·테두리 몫을 뺀 곳
+    Vector2D   size = pWindow->m_realSize->goal();
+    if (size.x < 100 || size.y < 100 || size.x > A.w || size.y > A.h)
+        size = Vector2D{std::min(std::max(size.x, A.w * 0.6), A.w), std::min(std::max(size.y, A.h * 0.6), A.h)};
+    Vector2D pos = center ? A.pos() + (A.size() - size) / 2.0 : pWindow->m_realPosition->goal();
+    pos.x        = std::clamp(pos.x, A.x, A.x + A.w - size.x);
+    pos.y        = std::clamp(pos.y, A.y, A.y + A.h - size.y);
+    pos          = pos.round();
+    if (pos == pWindow->m_realPosition->goal() && size == pWindow->m_realSize->goal())
+        return;
+    *pWindow->m_realPosition = pos;
+    *pWindow->m_realSize     = size;
+    pWindow->m_position      = pos;
+    pWindow->m_size          = size;
+    pWindow->sendWindowSize(true);
 }
 
 void CCompositor::sekaiApplyTileMode(PHLWINDOW pWindow) {

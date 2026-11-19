@@ -151,6 +151,7 @@ class CCompositor {
     bool                   sekaiWindowMustFloat(PHLWINDOW pWindow); // 대화상자·크기 고정·고정(핀)·딸린 창 — 타일링 모니터에서도 떠 있다
     bool                   sekaiWantsTiled(PHLWINDOW pWindow, PHLMONITOR pMonitor);
     void                   sekaiSetTiled(PHLWINDOW pWindow, bool tiled);
+    void                   sekaiFitFloating(PHLWINDOW pWindow, bool center); // 타일에서 풀린 창을 모니터 작업 영역 안으로
     void                   sekaiApplyTileMode(PHLWINDOW pWindow);
     void                   sekaiReapplyTileModes();
     void                   onNewMonitor(SP<Aquamarine::IOutput> output);
