@@ -3333,6 +3333,8 @@ bool CCompositor::sekaiWindowMustFloat(PHLWINDOW pWindow) {
         return true;
     if (pWindow->m_pinned || pWindow->m_requestsFloat || pWindow->isX11OverrideRedirect() || pWindow->parent() || pWindow->sekaiFixedSize())
         return true;
+    if (pWindow->m_tags.isTagged("sekaifloat")) // 설정이 고른 창 (암호 창·포털 등 — windowrulev2 = tag +sekaifloat, class:…)
+        return true;
     if (pWindow->m_workspace && pWindow->m_workspace->m_isSpecialWorkspace)
         return true;
     return g_pXWaylandManager->shouldBeFloated(pWindow);
