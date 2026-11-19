@@ -469,6 +469,32 @@ void IHyprLayout::onEndDragWindow() {
         }
     }
 
+    // SEKAI_TILE_MONITORS: 타일 창을 끌어 자유 배치 모니터에 놓았다 — 원본은 놓은 모니터의 타일에 다시 넣고, 거기선 다시 띄워야 해서
+    //   창이 놓은 자리에서 칸 가운데(= 모니터 가운데)로 튀었고 끌던 크기(칸의 85%)로 남았다. 놓은 자리에 그대로 띄운다 —
+    //   크기는 타일이 되기 전 떠 있던 크기, 잡은 자리(가로 비율·제목줄 높이)는 커서 밑에 그대로
+    if (DRAGGINGWINDOW->m_draggingTiled && g_pInputManager->m_dragMode == MBIND_MOVE && g_pCompositor->sekaiTileActive() &&
+        DRAGGINGWINDOW->m_monitor != m_sekaiDragStartMonitor && !g_pCompositor->sekaiWantsTiled(DRAGGINGWINDOW, DRAGGINGWINDOW->m_monitor.lock())) {
+        DRAGGINGWINDOW->m_draggingTiled  = false;
+        DRAGGINGWINDOW->m_sekaiUserFloat = false;
+        const auto MOUSE   = g_pInputManager->getMouseCoordsInternal();
+        const auto OLDPOS  = DRAGGINGWINDOW->m_realPosition->goal();
+        const auto OLDSIZE = DRAGGINGWINDOW->m_realSize->goal();
+        Vector2D   NEWSIZE = m_draggingWindowOriginalFloatSize;
+        if (NEWSIZE.x < 100 || NEWSIZE.y < 100)
+            NEWSIZE = OLDSIZE;
+        const double RELX = OLDSIZE.x > 0 ? std::clamp((MOUSE.x - OLDPOS.x) / OLDSIZE.x, 0.0, 1.0) : 0.5;
+        const double OFFY = std::min(MOUSE.y - OLDPOS.y, NEWSIZE.y / 2.0); // 제목줄을 잡았으면 음수
+        const Vector2D POS = Vector2D{MOUSE.x - RELX * NEWSIZE.x, MOUSE.y - OFFY}.round();
+        *DRAGGINGWINDOW->m_realSize      = NEWSIZE;
+        *DRAGGINGWINDOW->m_realPosition  = POS;
+        DRAGGINGWINDOW->m_size           = NEWSIZE;
+        DRAGGINGWINDOW->m_position       = POS;
+        DRAGGINGWINDOW->m_lastFloatingSize = NEWSIZE;
+        DRAGGINGWINDOW->sendWindowSize(true);
+        g_pCompositor->sekaiFitFloating(DRAGGINGWINDOW, false); // 작업 영역 밖으로 나간 만큼만 들인다
+        g_pCompositor->updateAllWindowsAnimatedDecorationValues();
+    }
+
     if (DRAGGINGWINDOW->m_draggingTiled) {
         static auto PPRECISEMOUSE    = CConfigValue<Hyprlang::INT>("dwindle:precise_mouse_move");
         DRAGGINGWINDOW->m_isFloating = false;
