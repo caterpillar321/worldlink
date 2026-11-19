@@ -101,14 +101,14 @@ void CSubsurface::checkSiblingDamage() {
         if (n.get() == this)
             continue;
 
-        const auto COORDS = n->coordsGlobal();
+        const auto COORDS = n->sekaiDamageOrigin();
         g_pHyprRenderer->damageSurface(n->m_wlSurface->resource(), COORDS.x, COORDS.y, SCALE);
     }
 }
 
 void CSubsurface::recheckDamageForSubsurfaces() {
     for (auto const& n : m_children) {
-        const auto COORDS = n->coordsGlobal();
+        const auto COORDS = n->sekaiDamageOrigin();
         g_pHyprRenderer->damageSurface(n->m_wlSurface->resource(), COORDS.x, COORDS.y);
     }
 }
@@ -132,7 +132,7 @@ void CSubsurface::onCommit() {
         return;
     }
 
-    const auto COORDS = coordsGlobal();
+    const auto COORDS = sekaiDamageOrigin();
 
     g_pHyprRenderer->damageSurface(m_wlSurface->resource(), COORDS.x, COORDS.y);
 
@@ -218,6 +218,17 @@ Vector2D CSubsurface::coordsRelativeToParent() {
     if (!m_subsurface)
         return {};
     return m_subsurface->posRelativeToParent();
+}
+
+Vector2D CSubsurface::sekaiDamageOrigin() {
+    // SEKAI_GEOM_SUBSURFACE: 창의 하위 면은 xdg 창 영역(geometry)의 시작점만큼 당겨 그린다 (Renderer.cpp renderWindow) —
+    //   다시 그릴 범위도 같은 자리로. 예전엔 그림자를 두는 앱(크롬·VS Code — 창 영역이 버퍼 안쪽에서 시작)의 하위 면이
+    //   그림자 폭만큼 어긋난 자리를 다시 그려, 마우스 올림 동그라미가 가장자리만 남았다 (화면 찍기는 새로 그려 깨끗했다)
+    Vector2D   coords = coordsGlobal();
+    const auto W      = m_windowParent.lock();
+    if (W && !W->m_isX11 && W->m_xdgSurface)
+        coords -= W->m_xdgSurface->m_current.geometry.pos();
+    return coords;
 }
 
 Vector2D CSubsurface::coordsGlobal() {

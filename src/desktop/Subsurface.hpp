@@ -23,6 +23,7 @@ class CSubsurface {
 
     Vector2D        coordsRelativeToParent();
     Vector2D        coordsGlobal();
+    Vector2D        sekaiDamageOrigin(); // 다시 그릴 범위의 기준 — 그림과 같게 xdg 창 영역 시작점만큼 당김 (SEKAI_GEOM_SUBSURFACE)
 
     Vector2D        size();
 
