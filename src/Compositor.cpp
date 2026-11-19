@@ -2916,6 +2916,10 @@ void CCompositor::moveWindowToWorkspaceSafe(PHLWINDOW pWindow, PHLWORKSPACE pWor
         pWindow->m_movingFromWorkspaceAlpha->setValueAndWarp(0.F);
         *pWindow->m_movingFromWorkspaceAlpha = 1.F;
     }
+    // SEKAI_TILE_MONITORS: 묶음(탭) 창은 위에서 바꾸지 않았다(묶음 규칙과 엉킨다) — 다 옮긴 뒤 묶음째 그 모니터 방식으로
+    if (sekaiTileActive() && !pWindow->m_groupData.pNextWindow.expired() && PWORKSPACEMONITOR && SEKAIFROM &&
+        SEKAIFROM->m_monitor.lock() != PWORKSPACEMONITOR && !pWorkspace->m_isSpecialWorkspace)
+        sekaiApplyTileMode(pWindow->getGroupCurrent());
     pWindow->sekaiRefitMaximized(); // SEKAI_MAXIMIZE2: 다른 모니터로 옮긴 최대화 창은 그 작업 영역에
     // SEKAI_DIALOG_FOLLOW: 딸린 창(대화상자 — parent 가 이 창인 창)도 같은 데스크톱으로. 부모를 최소화(special:min)하면
     //   "저장할까요?" 같은 대화상자만 바탕화면에 홀로 남았다 (윈도우는 함께 숨긴다). 되살릴 때도 함께 돌아온다
@@ -3354,10 +3358,14 @@ bool CCompositor::sekaiWantsTiled(PHLWINDOW pWindow, PHLMONITOR pMonitor) {
 }
 
 void CCompositor::sekaiSetTiled(PHLWINDOW pWindow, bool tiled) {
+    // 묶음(탭) 창 — 원본 togglefloating 처럼 지금 보이는 창(레이아웃 칸을 가진 창)을 바꾸고 나머지가 따른다
+    PHLWINDOW SEKAIGROUP;
+    if (pWindow && !pWindow->m_groupData.pNextWindow.expired() && pWindow->m_groupData.pNextWindow.lock() != pWindow) {
+        SEKAIGROUP = pWindow->getGroupCurrent();
+        pWindow    = SEKAIGROUP;
+    }
     if (!pWindow || !pWindow->m_isMapped || tiled == !pWindow->m_isFloating || pWindow->isFullscreen())
         return;
-    if (!pWindow->m_groupData.pNextWindow.expired())
-        return; // 묶음(탭) 창은 건드리지 않는다
     if (tiled && pWindow->m_sekaiMaximized)
         pWindow->sekaiSetMaximized(false);
     if (!g_pInputManager->m_currentlyDraggedWindow.expired() && g_pInputManager->m_currentlyDraggedWindow.lock() == pWindow)
@@ -3383,6 +3391,10 @@ void CCompositor::sekaiSetTiled(PHLWINDOW pWindow, bool tiled) {
         g_pHyprRenderer->damageWindow(pWindow);
     } else
         g_pLayoutManager->getCurrentLayout()->changeWindowFloatingMode(pWindow);
+    if (SEKAIGROUP) {
+        for (auto curr = SEKAIGROUP->m_groupData.pNextWindow.lock(); curr && curr != SEKAIGROUP; curr = curr->m_groupData.pNextWindow.lock())
+            curr->m_isFloating = SEKAIGROUP->m_isFloating;
+    }
     if (pWindow->m_workspace) {
         pWindow->m_workspace->updateWindows();
         pWindow->m_workspace->updateWindowData();
