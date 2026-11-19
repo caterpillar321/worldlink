@@ -90,9 +90,8 @@ CKeybindManager::CKeybindManager() {
         const auto W     = COMMA == std::string::npos ? g_pCompositor->m_lastWindow.lock() : g_pCompositor->getWindowByRegex(trim(args.substr(COMMA + 1)));
         if (!W)
             return {.success = false, .error = "No such window found"};
-        if (!W->m_isFloating)
-            return {.success = false, .error = "Only floating windows can be maximized"};
-        const bool ON = MODE == "on" ? true : MODE == "off" ? false : !W->m_sekaiMaximized;
+        // SEKAI_TILE_MONITORS: 타일 창도 — 타일링식 최대화 (sekaiSetMaximized 가 나눈다)
+        const bool ON = MODE == "on" ? true : MODE == "off" ? false : !W->sekaiIsMaximized();
         if (ON && W->m_sekaiMinimized)
             W->sekaiSetMinimized(false);
         W->sekaiSetMaximized(ON);

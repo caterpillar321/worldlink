@@ -1990,7 +1990,10 @@ void CWindow::sekaiSetMaximized(bool on) {
         const auto SELF = m_self.lock();
         if (on != (m_fullscreenState.internal == FSMODE_MAXIMIZED))
             g_pCompositor->setWindowFullscreenInternal(SELF, on ? FSMODE_MAXIMIZED : FSMODE_NONE);
-        sekaiSendMaximizedState();
+        if (m_xdgSurface && m_xdgSurface->m_toplevel)
+            m_xdgSurface->m_toplevel->setMaximized(on);
+        if (m_isX11 && m_xwaylandSurface)
+            m_xwaylandSurface->setMaximized(on);
         return;
     }
     const auto SELF = m_self.lock();
@@ -2090,4 +2093,8 @@ void CWindow::sekaiSetMinimized(bool on) {
     sekaiFullscreenSync(m_workspace);
     g_pHyprRenderer->damageWindow(SELF);
     g_pEventManager->postEvent(SHyprIPCEvent{"sekaiminimized", std::format("{:x},{}", (uintptr_t)this, on ? 1 : 0)});
+}
+
+bool CWindow::sekaiIsMaximized() { // SEKAI_TILE_MONITORS
+    return m_isFloating ? m_sekaiMaximized : m_fullscreenState.internal == FSMODE_MAXIMIZED;
 }

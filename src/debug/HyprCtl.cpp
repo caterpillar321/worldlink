@@ -308,7 +308,7 @@ std::string CHyprCtl::getWindowData(PHLWINDOW w, eHyprCtlOutputFormat format) {
             // SEKAI_FRAME_TOP: 창 영역 위에 장식(제목줄 막대)이 차지하는 높이 — 셸이 규칙·설정으로 다시 짐작하지 않게
             std::max(0, (int)std::round(g_pDecorationPositioner->getWindowDecorationReserved(w).topLeft.y) - w->getRealBorderSize()), // (테두리는 빼고)
             (w->m_sekaiMinimized ? "true" : "false"), // SEKAI_MINIMIZE2
-            (w->m_sekaiMaximized ? "true" : "false")); // SEKAI_MAXIMIZE2
+            (w->sekaiIsMaximized() ? "true" : "false")); // SEKAI_MAXIMIZE2 (SEKAI_TILE_MONITORS: 타일 창의 최대화도)
     } else {
         return std::format(
             "Window {:x} -> {}:\n\tmapped: {}\n\thidden: {}\n\tat: {},{}\n\tsize: {},{}\n\tworkspace: {} ({})\n\tfloating: {}\n\tpseudo: {}\n\tmonitor: {}\n\tclass: {}\n\ttitle: "

@@ -742,7 +742,7 @@ void CHyprBar::renderBarButtonsText(CBox* barBox, const float scale, const float
         noScaleOffset += **PBARBUTTONPADDING + button.size;
 
         // SEKAI_MAXIMIZE2: 최대화한 창은 최대화 단추를 복원 모양으로
-        const bool SEKAIRESTORE = button.icon == "sekai:max" && m_pWindow.lock() && m_pWindow.lock()->m_sekaiMaximized;
+        const bool SEKAIRESTORE = button.icon == "sekai:max" && m_pWindow.lock() && m_pWindow.lock()->sekaiIsMaximized();
         const auto ICONTEX      = SEKAIRESTORE ? button.iconTex2 : button.iconTex;
         if (ICONTEX->m_texID == 0 /* icon is not rendered */ && !button.icon.empty()) {
             // render icon

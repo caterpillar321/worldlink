@@ -406,6 +406,7 @@ class CWindow {
     // SEKAI_TILE_MONITORS: 타일링 모니터에서 사용자가 이 창만 띄웠다(Win+Shift+V) — 다시 맞출 때 끌어가지 않는다.
     //   최소화하며 타일에서 뺐다 — 되살리면 다시 타일로
     bool                       m_sekaiUserFloat     = false;
+    bool                       sekaiIsMaximized(); // 떠 있는 창의 최대화(m_sekaiMaximized) 또는 타일 창의 타일링식 최대화
     bool                       m_sekaiTiledBeforeMin = false;
     void                       sekaiSetMinimized(bool on);
     // SEKAI_MAXIMIZE2: 최대화도 창의 상태 — 작업 공간의 전체 화면 장치(FSMODE_MAXIMIZED)를 쓰지 않는다. 한 데스크톱에 여럿,
