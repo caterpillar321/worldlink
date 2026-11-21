@@ -148,7 +148,12 @@ void main() {
             done = true;
         } else if (min(pixCoordOuter.x, pixCoordOuter.y) > 0.0) {
             // higher
-            float normalized = 1.0 - smoothstep(0.0, 1.0, (distOuter - radiusOuter + SMOOTHING_CONSTANT) / (SMOOTHING_CONSTANT * 2.0));
+            // SEKAI_BORDER_CORNER: on the curve the ring's inner half is hidden under the window's own AA fringe, so
+            // only a sliver showed over the shadow. Push the outer edge out by up to 0.7px on the diagonal so the visible
+            // part matches the straight edges (0 where the arc meets them).
+            float diagO    = 2.0 * min(pixCoordOuter.x, pixCoordOuter.y) / max(pixCoordOuter.x + pixCoordOuter.y, 0.0001);
+            float extraOut = thick < 2.5 ? 0.7 * diagO : 0.0;
+            float normalized = 1.0 - smoothstep(0.0, 1.0, (distOuter - radiusOuter - extraOut + SMOOTHING_CONSTANT) / (SMOOTHING_CONSTANT * 2.0));
             additionalAlpha *= normalized;
             done = true;
         } else if (distOuter < radiusOuter - h) {
