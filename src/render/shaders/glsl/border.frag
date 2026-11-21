@@ -142,7 +142,7 @@ void main() {
             // with the window's own anti-aliased corner, so it read thinner/darker than on the straight edges. Pull the
             // inner edge in toward the window (over its AA fringe) by up to 1px at 45 degrees (it is drawn under the window — SEKAI_BORDER_UNDER — so only the fringe shows it), 0 where the arc meets the edges.
             float diag  = 2.0 * min(pixCoord.x, pixCoord.y) / max(pixCoord.x + pixCoord.y, 0.0001);
-            float extra = thick < 2.5 ? 1.0 * diag : 0.0;
+            float extra = thick < 1.5 ? 1.0 * diag : 0.0; // 2px+: no inner fill — it darkened the window fringe at the corner
             float normalized = smoothstep(0.0, 1.0, (dist - radius + thick + extra + SMOOTHING_CONSTANT) / (SMOOTHING_CONSTANT * 2.0));
             additionalAlpha *= normalized;
             done = true;
@@ -152,7 +152,9 @@ void main() {
             // only a sliver showed over the shadow. Push the outer edge out by up to 0.7px on the diagonal so the visible
             // part matches the straight edges (0 where the arc meets them).
             float diagO    = 2.0 * min(pixCoordOuter.x, pixCoordOuter.y) / max(pixCoordOuter.x + pixCoordOuter.y, 0.0001);
-            float extraOut = thick < 1.5 ? 0.7 * diagO : 0.0; // only a 1px line needs it — at 2px it made the corner heavier than the edges
+            // 1px: push out so the thin curve shows; 2px+: pull in a little — the window's own AA corner already spreads ~0.3px
+            // outward, so the dark band (window edge + border) read wider at the corners than on the straight edges
+            float extraOut = thick < 1.5 ? 0.7 * diagO : -0.3 * diagO;
             float normalized = 1.0 - smoothstep(0.0, 1.0, (distOuter - radiusOuter - extraOut + SMOOTHING_CONSTANT) / (SMOOTHING_CONSTANT * 2.0));
             additionalAlpha *= normalized;
             done = true;
