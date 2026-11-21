@@ -175,6 +175,17 @@ void CHyprDropShadowDecoration::render(PHLMONITOR pMonitor, float const& a) {
         // add extents
         windowBox.scale(pMonitor->m_scale).round().addExtents(scaledExtentss);
 
+        // SEKAI_SHADOW_UNDER_BORDER: the border is translucent (Windows 11 style thin line), so do not cut the
+        // shadow out under it — otherwise the wallpaper / a white page behind shows through the 1px ring as a bright
+        // halo, and at the corners the (rounder) clip lets the shadow back in, so the ring looks broken there.
+        // Clip only what is inside the border (window + title bar) with the inner rounding.
+        static auto PBORDERPART = CConfigValue<Hyprlang::INT>("decoration:border_part_of_window");
+        const int   BORDERSIZE  = *PBORDERPART ? PWINDOW->getRealBorderSize() : 0;
+        const bool  INNERCLIP   = BORDERSIZE > 0 && windowBox.width > 2 * BORDERSIZE * pMonitor->m_scale && windowBox.height > 2 * BORDERSIZE * pMonitor->m_scale;
+        if (INNERCLIP)
+            windowBox.expand(-BORDERSIZE * pMonitor->m_scale).round();
+        const int   CLIPROUNDING = std::round(INNERCLIP ? ROUNDINGBASE * pMonitor->m_scale : (ROUNDING + 1 /* This fixes small pixel gaps. */) * pMonitor->m_scale);
+
         if (windowBox.width < 1 || windowBox.height < 1)
             return; // prevent assert failed
 
@@ -195,7 +206,7 @@ void CHyprDropShadowDecoration::render(PHLMONITOR pMonitor, float const& a) {
         drawShadowInternal(fullBox, ROUNDING * pMonitor->m_scale, ROUNDINGPOWER, *PSHADOWSIZE * pMonitor->m_scale, CHyprColor(1, 1, 1, PWINDOW->m_realShadowColor->value().a), a);
 
         // render black window box ("clip")
-        g_pHyprOpenGL->renderRect(windowBox, CHyprColor(0, 0, 0, 1.0), (ROUNDING + 1 /* This fixes small pixel gaps. */) * pMonitor->m_scale, ROUNDINGPOWER);
+        g_pHyprOpenGL->renderRect(windowBox, CHyprColor(0, 0, 0, 1.0), CLIPROUNDING, ROUNDINGPOWER);
 
         alphaSwapFB.bind();
 
