@@ -96,7 +96,9 @@ void CSurfacePassElement::draw(const CRegion& damage) {
     float rounding      = m_data.rounding;
     float roundingPower = m_data.roundingPower;
 
-    rounding -= 1; // to fix a border issue
+    // SEKAI_BORDER_UNDER: upstream shrank the window's rounding by 1 so the border (drawn over the window) covered the
+    // seam. The border is drawn under the window now, and the smaller radius made the window's corner stick out past the
+    // border's inner curve (~0.4px on the diagonal) — the corners read darker and wider than the edges. Keep the real radius.
 
     if (m_data.dontRound) {
         rounding      = 0;

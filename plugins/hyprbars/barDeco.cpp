@@ -841,7 +841,9 @@ void CHyprBar::renderPass(PHLMONITOR pMonitor, const float& a) {
 
     const auto ROUNDING = PWINDOW->rounding() + (*PPRECEDENCE ? 0 : PWINDOW->getRealBorderSize());
 
-    const auto scaledRounding = ROUNDING > 0 ? ROUNDING * pMonitor->m_scale - 2 /* idk why but otherwise it looks bad due to the gaps */ : 0;
+    // SEKAI_BORDER_UNDER: upstream used rounding - 2 to hide gaps against a border drawn over the window; the border is under
+    // the window now, and the smaller radius made the bar's top corners stick out past the border's curve (darker corners)
+    const auto scaledRounding = ROUNDING > 0 ? ROUNDING * pMonitor->m_scale : 0;
 
     m_seExtents = {{0, **PHEIGHT}, {}};
 
