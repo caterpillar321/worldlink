@@ -152,7 +152,7 @@ void main() {
             // only a sliver showed over the shadow. Push the outer edge out by up to 0.7px on the diagonal so the visible
             // part matches the straight edges (0 where the arc meets them).
             float diagO    = 2.0 * min(pixCoordOuter.x, pixCoordOuter.y) / max(pixCoordOuter.x + pixCoordOuter.y, 0.0001);
-            float extraOut = thick < 2.5 ? 0.7 * diagO : 0.0;
+            float extraOut = thick < 1.5 ? 0.7 * diagO : 0.0; // only a 1px line needs it — at 2px it made the corner heavier than the edges
             float normalized = 1.0 - smoothstep(0.0, 1.0, (distOuter - radiusOuter - extraOut + SMOOTHING_CONSTANT) / (SMOOTHING_CONSTANT * 2.0));
             additionalAlpha *= normalized;
             done = true;
