@@ -138,7 +138,12 @@ void main() {
 
 	    if (dist < radius - h) {
             // lower
-            float normalized = smoothstep(0.0, 1.0, (dist - radius + thick + SMOOTHING_CONSTANT) / (SMOOTHING_CONSTANT * 2.0));
+            // SEKAI_BORDER_CORNER: a thin (1px) line on the curve is spread over two pixels by the anti-aliasing and mixed
+            // with the window's own anti-aliased corner, so it read thinner/darker than on the straight edges. Pull the
+            // inner edge in toward the window (over its AA fringe) by up to 0.6px at 45 degrees, 0 where the arc meets the edges.
+            float diag  = 2.0 * min(pixCoord.x, pixCoord.y) / max(pixCoord.x + pixCoord.y, 0.0001);
+            float extra = thick < 2.5 ? 0.6 * diag : 0.0;
+            float normalized = smoothstep(0.0, 1.0, (dist - radius + thick + extra + SMOOTHING_CONSTANT) / (SMOOTHING_CONSTANT * 2.0));
             additionalAlpha *= normalized;
             done = true;
         } else if (min(pixCoordOuter.x, pixCoordOuter.y) > 0.0) {
