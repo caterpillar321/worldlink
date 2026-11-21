@@ -143,7 +143,11 @@ void CHyprBorderDecoration::damageEntire() {
 }
 
 eDecorationLayer CHyprBorderDecoration::getDecorationLayer() {
-    return DECORATION_LAYER_OVER;
+    // SEKAI_BORDER_UNDER: draw the border before the window, so the window's anti-aliased rounded corner blends with the
+    // (light) border instead of the shadow below it — drawn over, the corner fringe became a dark seam and the thin line
+    // looked thinner there than on the straight edges. Straight edges do not overlap the window, so they are unchanged.
+    // hyprbars is also UNDER and is added later, so the title bar still covers the border's inner corner extension.
+    return DECORATION_LAYER_UNDER;
 }
 
 uint64_t CHyprBorderDecoration::getDecorationFlags() {
