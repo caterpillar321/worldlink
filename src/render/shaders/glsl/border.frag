@@ -152,9 +152,9 @@ void main() {
             // only a sliver showed over the shadow. Push the outer edge out by up to 0.7px on the diagonal so the visible
             // part matches the straight edges (0 where the arc meets them).
             float diagO    = 2.0 * min(pixCoordOuter.x, pixCoordOuter.y) / max(pixCoordOuter.x + pixCoordOuter.y, 0.0001);
-            // 1px: push out so the thin curve shows; 2px+: pull in a little — the window's own AA corner already spreads ~0.3px
-            // outward, so the dark band (window edge + border) read wider at the corners than on the straight edges
-            float extraOut = thick < 1.5 ? 0.7 * diagO : -0.3 * diagO;
+            // 1px: push out so the thin curve shows. 2px+: none — the corners looked heavy only because the window/title bar used a
+            // smaller radius (fixed: no -1/-2 any more); pulling the border in on top of that made it ~12% thinner there
+            float extraOut = thick < 1.5 ? 0.7 * diagO : 0.0;
             float normalized = 1.0 - smoothstep(0.0, 1.0, (distOuter - radiusOuter - extraOut + SMOOTHING_CONSTANT) / (SMOOTHING_CONSTANT * 2.0));
             additionalAlpha *= normalized;
             done = true;
