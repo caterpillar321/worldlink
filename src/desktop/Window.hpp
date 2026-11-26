@@ -19,6 +19,7 @@
 #include "WindowRule.hpp"
 #include "WindowOverridableVar.hpp"
 #include "../protocols/types/ContentType.hpp"
+#include "../managers/eventLoop/EventLoopTimer.hpp"
 
 class CXDGSurfaceResource;
 class CXWaylandSurface;
@@ -251,6 +252,7 @@ class CWindow {
     // SEKAI_X11_REVEAL: 위치 표시 없는 X11 창은 붙인 뒤 잠깐 투명하게 — 앱이 붙인 직후 스스로 기억한 자리로 옮기면(Flutter 창 관리 등)
     //   합성기가 놓은 가운데에 잠깐 보였다가 사라지는 잔상이 났다 (RustDesk). 그동안 옮기면 옮긴 자리에서 나타난다
     bool                    m_sekaiHoldReveal = false;
+    SP<CEventLoopTimer>     m_sekaiRevealTimer; // 창이 쥐고 있어야 불린다 (이벤트 루프는 참조가 둘뿐인 타이머를 잃은 것으로 보고 건너뛴다)
     void                    sekaiHoldRevealFor(int ms);
     void                    sekaiReveal();
 

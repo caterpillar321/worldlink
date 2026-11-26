@@ -504,6 +504,12 @@ PHLWINDOW CWindow::x11TransientFor() {
 }
 
 void CWindow::onUnmap() {
+    m_sekaiHoldReveal = false; // SEKAI_X11_REVEAL: 나타나기 전에 닫힌 창 — 타이머 정리
+    if (m_sekaiRevealTimer) {
+        const auto T = m_sekaiRevealTimer;
+        m_sekaiRevealTimer.reset();
+        g_pEventLoopManager->doLater([T] { g_pEventLoopManager->removeTimer(T); });
+    }
     static auto PCLOSEONLASTSPECIAL = CConfigValue<Hyprlang::INT>("misc:close_special_on_empty");
     static auto PINITIALWSTRACKING  = CConfigValue<Hyprlang::INT>("misc:initial_workspace_tracking");
 
@@ -1409,19 +1415,25 @@ void CWindow::sekaiHoldRevealFor(int ms) {
     m_sekaiHoldReveal = true;
     m_alpha->setValueAndWarp(0.f);
     Debug::log(LOG, "SEKAI_X11_REVEAL: {} held for {}ms", m_self.lock(), ms);
-    const PHLWINDOWREF WR    = m_self;
-    const auto         TIMER = makeShared<CEventLoopTimer>(
+    const PHLWINDOWREF WR = m_self;
+    if (m_sekaiRevealTimer)
+        g_pEventLoopManager->removeTimer(m_sekaiRevealTimer);
+    m_sekaiRevealTimer = makeShared<CEventLoopTimer>(
         std::chrono::milliseconds(ms),
         [WR](SP<CEventLoopTimer> self, void* data) {
-            if (const auto W = WR.lock(); W && W->m_sekaiHoldReveal)
+            if (const auto W = WR.lock(); W)
                 W->sekaiReveal();
-            g_pEventLoopManager->doLater([self] { g_pEventLoopManager->removeTimer(self); }); // 불리는 중에 빼지 않는다
         },
         nullptr);
-    g_pEventLoopManager->addTimer(TIMER);
+    g_pEventLoopManager->addTimer(m_sekaiRevealTimer);
 }
 
 void CWindow::sekaiReveal() {
+    if (m_sekaiRevealTimer) {
+        const auto T = m_sekaiRevealTimer;
+        m_sekaiRevealTimer.reset();
+        g_pEventLoopManager->doLater([T] { g_pEventLoopManager->removeTimer(T); }); // 불리는 중에 빼지 않는다
+    }
     if (!m_sekaiHoldReveal)
         return;
     m_sekaiHoldReveal = false;

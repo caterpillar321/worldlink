@@ -2333,7 +2333,7 @@ void CCompositor::updateFullscreenFadeOnWorkspace(PHLWORKSPACE pWorkspace) {
     for (auto const& w : g_pCompositor->m_windows) {
         if (w->m_workspace == pWorkspace) {
 
-            if (w->m_fadingOut || w->m_pinned || w->isFullscreen())
+            if (w->m_fadingOut || w->m_pinned || w->isFullscreen() || w->m_sekaiHoldReveal) // SEKAI_X11_REVEAL: 나타나기를 기다리는 창은 그대로
                 continue;
 
             if (!FULLSCREEN)
