@@ -589,9 +589,14 @@ void CHyprDwindleLayout::resizeActiveWindow(const Vector2D& pixResize, eRectCorn
     const auto PNODE = getNodeFromWindow(PWINDOW);
 
     if (!PNODE) {
-        *PWINDOW->m_realSize =
-            (PWINDOW->m_realSize->goal() + pixResize)
-                .clamp(PWINDOW->m_windowData.minSize.valueOr(Vector2D{MIN_WINDOW_SIZE, MIN_WINDOW_SIZE}), PWINDOW->m_windowData.maxSize.valueOr(Vector2D{INFINITY, INFINITY}));
+        // SEKAI_SIZE_HINTS: 앱이 정한 최소·최대 크기도 (마우스로 끌 때처럼) — 단축키·hyprctl 로 바꿀 때 넘어갔다
+        Vector2D LO = PWINDOW->m_windowData.minSize.valueOr(Vector2D{MIN_WINDOW_SIZE, MIN_WINDOW_SIZE});
+        Vector2D HI = PWINDOW->m_windowData.maxSize.valueOr(Vector2D{INFINITY, INFINITY});
+        const auto RMIN = PWINDOW->requestedMinSize(), RMAX = PWINDOW->requestedMaxSize();
+        LO = Vector2D{std::max(LO.x, RMIN.x), std::max(LO.y, RMIN.y)};
+        HI = Vector2D{std::min(HI.x, RMAX.x), std::min(HI.y, RMAX.y)};
+        HI = Vector2D{std::max(HI.x, LO.x), std::max(HI.y, LO.y)};
+        *PWINDOW->m_realSize = (PWINDOW->m_realSize->goal() + pixResize).clamp(LO, HI);
         PWINDOW->updateWindowDecos();
         return;
     }

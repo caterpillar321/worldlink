@@ -1,5 +1,6 @@
 #include "XDGShell.hpp"
 void sekaiClientMoveStart(PHLWINDOW w); // SEKAI_CLIENT_MOVE (InputManager.cpp)
+void sekaiClientResizeStart(PHLWINDOW w, int axis); // SEKAI_CLIENT_RESIZE (InputManager.cpp)
 #include "XDGDialog.hpp"
 #include <algorithm>
 #include "../Compositor.hpp"
@@ -181,6 +182,13 @@ CXDGToplevelResource::CXDGToplevelResource(SP<CXdgToplevel> resource_, SP<CXDGSu
 
     // SEKAI_CLIENT_MOVE: 창이 그린 제목줄을 끌면 옮긴다
     m_resource->setMove([this](CXdgToplevel* r, wl_resource* seat, uint32_t serial) { sekaiClientMoveStart(m_window.lock()); });
+    // SEKAI_CLIENT_RESIZE: 창이 그린 가장자리를 끌면 크기를 바꾼다 (위·아래 = 1|2, 왼쪽·오른쪽 = 4|8)
+    m_resource->setResize([this](CXdgToplevel* r, wl_resource* seat, uint32_t serial, xdgToplevelResizeEdge edges) {
+        const uint32_t E = (uint32_t)edges;
+        const bool     V = E & 3, H = E & 12;
+        if (V || H)
+            sekaiClientResizeStart(m_window.lock(), V && H ? 0 : (V ? 1 : 2));
+    });
     // SEKAI_WINDOW_MENU: 앱이 그린 제목줄의 오른쪽 클릭 — 셸(패널)이 윈도우식 창 메뉴를 띄운다
     m_resource->setShowWindowMenu([this](CXdgToplevel* r, wl_resource* seat, uint32_t serial, int32_t x, int32_t y) {
         const auto W = m_window.lock();

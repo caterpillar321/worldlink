@@ -2,6 +2,20 @@
 bool sekaiTakeInitialMaximize(PHLWINDOW w); // SEKAI_INITIAL_MAXIMIZE (desktop/Window.cpp)
 void sekaiFullscreenSync(PHLWORKSPACE ws, PHLWINDOW gone = nullptr); // SEKAI_MULTIMAX (Compositor.cpp)
 
+// SEKAI_X11_POS: X11 창이 처음 위치를 정해 두었나 (WM_NORMAL_HINTS 의 USPosition(1)·PPosition(4) + (0,0) 이 아니고 화면 안)
+static bool sekaiX11WantsPos(PHLWINDOW w) {
+    if (!w->m_isX11 || !w->m_xwaylandSurface || w->isX11OverrideRedirect() || !w->m_xwaylandSurface->m_sizeHints)
+        return false;
+    if (!(w->m_xwaylandSurface->m_sizeHints->flags & (1 /* US_POSITION */ | 4 /* P_POSITION */)))
+        return false;
+    const auto G = w->m_xwaylandSurface->m_geometry;
+    if (G.x == 0 && G.y == 0)
+        return false;
+    const auto P = g_pXWaylandManager->xwaylandToWaylandCoords(G.pos());
+    const auto S = w->m_realSize->goal();
+    return g_pCompositor->isPointOnAnyMonitor(P + Vector2D{1, 1}) && g_pCompositor->isPointOnAnyMonitor(P + S - Vector2D{1, 1});
+}
+
 #include "../Compositor.hpp"
 #include "../helpers/WLClasses.hpp"
 #include "../helpers/AsyncDialogBox.hpp"
@@ -581,6 +595,13 @@ void Events::listener_mapWindow(void* owner, void* data) {
                     break;
                 }
                 case CWindowRule::RULE_CENTER: {
+                    // SEKAI_X11_POS: X11 창이 열 자리를 분명히 정해 두었으면(USPosition·PPosition, (0,0) 아님, 화면 안) 가운데로 옮기지
+                    //   않는다 — 윈도우도 앱이 정한 자리에 연다. 모든 떠 있는 창에 걸리는 center 규칙이 위치를 기억하는 X11 앱을
+                    //   가운데에 열어, 앱이 0.2초 뒤 제자리로 옮기며 가운데에 잔상이 남았다 (RustDesk, 2026-11-27)
+                    if (sekaiX11WantsPos(PWINDOW)) {
+                        Debug::log(LOG, "SEKAI_X11_POS: {} keeps its requested position", PWINDOW);
+                        break;
+                    }
                     auto       RESERVEDOFFSET = Vector2D();
                     const auto ARGS           = CVarList(r->m_rule, 2, ' ');
                     if (ARGS[1] == "1")

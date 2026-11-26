@@ -1404,6 +1404,14 @@ std::unordered_map<std::string, std::string> CWindow::getEnv() {
     return results;
 }
 
+void CWindow::sekaiMarkUrgent() {
+    if (g_pCompositor->m_lastWindow == m_self || m_isUrgent)
+        return;
+    m_isUrgent = true;
+    g_pEventManager->postEvent(SHyprIPCEvent{.event = "urgent", .data = std::format("{:x}", (uintptr_t)this)});
+    EMIT_HOOK_EVENT("urgent", m_self.lock());
+}
+
 void CWindow::activate(bool force) {
     if (g_pCompositor->m_lastWindow == m_self)
         return;

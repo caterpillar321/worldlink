@@ -245,6 +245,9 @@ class CWindow {
 
     // urgency hint
     bool m_isUrgent = false;
+    // SEKAI_X11_URGENT: 초점을 옮기지 않고 긴급 표시·"urgent" 이벤트만 (X11 WM_HINTS 긴급·_NET_WM_STATE_DEMANDS_ATTENTION —
+    //   작업 표시줄이 단추를 깜빡인다). activate() 는 설정에 따라 창을 끌어오기까지 해서 따로 둔다
+    void sekaiMarkUrgent();
 
     // for proper cycling. While cycling we can't just move the pointers, so we need to keep track of the last cycled window.
     PHLWINDOWREF m_lastCycledWindow;

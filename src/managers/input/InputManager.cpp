@@ -105,6 +105,38 @@ static PHLWINDOWREF sekaiMoveWin;
 static bool         sekaiButtonHeld = false; // SEKAI_CLIENT_MOVE2: 지금 마우스 버튼이 눌려 있나 (onMouseButton 이 적는다)
 static Vector2D     sekaiPressXY;            // SEKAI_CLIENT_MOVE3: 마지막으로 버튼을 누른 자리 (끌기 기준점)
 
+static bool sekaiResizing = false; // SEKAI_CLIENT_RESIZE: 앱이 청한 크기 바꾸기 중 (놓으면 끝)
+
+// SEKAI_CLIENT_RESIZE: 창이 스스로 그린 가장자리를 끌면 크기를 바꾼다 — X11 _NET_WM_MOVERESIZE(0~7)·xdg_toplevel.resize.
+//   axis: 0 모서리 · 1 위·아래만 · 2 왼쪽·오른쪽만. 어느 모서리를 잡았는지는 커서가 창의 어느 쪽에 있는지로 (테두리 잡기와 같다)
+void sekaiClientResizeStart(PHLWINDOW w, int axis) {
+    if (!w || sekaiMoving || sekaiResizing || !sekaiButtonHeld || !g_pInputManager->m_currentlyDraggedWindow.expired())
+        return;
+    if (!validMapped(w) || !w->m_isFloating || w->isFullscreen() || w->m_sekaiMaximized || w->sekaiFixedSize())
+        return;
+    if (g_pCompositor->vectorToWindowUnified(g_pInputManager->getMouseCoordsInternal(), RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING) != w)
+        return;
+    g_sekaiResizeAxis = axis;
+    g_pKeybindManager->m_dispatchers["mouse"]("1resizewindow");
+    if (g_pInputManager->m_currentlyDraggedWindow.lock() != w) {
+        g_pKeybindManager->m_dispatchers["mouse"]("0resizewindow");
+        return;
+    }
+    sekaiResizing = true;
+}
+
+// SEKAI_CLIENT_RESIZE: X11 이 끌기를 취소(_NET_WM_MOVERESIZE_CANCEL)하면 놓은 것처럼
+void sekaiClientDragCancel() {
+    if (sekaiResizing) {
+        sekaiResizing = false;
+        g_pKeybindManager->m_dispatchers["mouse"]("0resizewindow");
+    }
+    if (sekaiMoving) {
+        sekaiMoving = false;
+        g_pKeybindManager->m_dispatchers["mouse"]("0movewindow");
+    }
+}
+
 void sekaiClientMoveStart(PHLWINDOW w) {
     if (!w || sekaiMoving || !sekaiButtonHeld || !g_pInputManager->m_currentlyDraggedWindow.expired())
         return;
@@ -736,6 +768,10 @@ void CInputManager::onMouseButton(IPointer::SButtonEvent e) {
     if (sekaiMoving && e.state != WL_POINTER_BUTTON_STATE_PRESSED) { // SEKAI_CLIENT_MOVE — 놓음 (셸에는 changeMouseBindMode 가 알린다)
         sekaiMoving = false;
         g_pKeybindManager->m_dispatchers["mouse"]("0movewindow");
+    }
+    if (sekaiResizing && e.state != WL_POINTER_BUTTON_STATE_PRESSED) { // SEKAI_CLIENT_RESIZE — 놓음
+        sekaiResizing = false;
+        g_pKeybindManager->m_dispatchers["mouse"]("0resizewindow");
     }
 
     EMIT_HOOK_EVENT_CANCELLABLE("mouseButton", e);

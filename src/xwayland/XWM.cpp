@@ -205,6 +205,18 @@ std::string CXWM::getAtomName(uint32_t atom) {
     return {name, name_len};
 }
 
+void sekaiClientMoveStart(PHLWINDOW w);           // SEKAI_CLIENT_MOVE (InputManager.cpp)
+void sekaiClientResizeStart(PHLWINDOW w, int axis); // SEKAI_CLIENT_RESIZE
+void sekaiClientDragCancel();
+
+static PHLWINDOW sekaiWindowFor(SP<CXWaylandSurface> xs) {
+    for (auto const& w : g_pCompositor->m_windows) {
+        if (w->m_xwaylandSurface.lock() == xs)
+            return w;
+    }
+    return nullptr;
+}
+
 void CXWM::readProp(SP<CXWaylandSurface> XSURF, uint32_t atom, xcb_get_property_reply_t* reply) {
     std::string propName;
     if (Debug::m_trace)
@@ -250,6 +262,11 @@ void CXWM::readProp(SP<CXWaylandSurface> XSURF, uint32_t atom, xcb_get_property_
         xcb_icccm_get_wm_hints_from_reply(XSURF->m_hints.get(), reply);
         if (!(XSURF->m_hints->flags & XCB_ICCCM_WM_HINT_INPUT))
             XSURF->m_hints->input = true;
+        // SEKAI_X11_URGENT: 긴급 표시(XUrgencyHint) — 작업 표시줄 깜빡임
+        if (XSURF->m_hints->flags & XCB_ICCCM_WM_HINT_X_URGENCY) {
+            if (const auto W = sekaiWindowFor(XSURF); W)
+                W->sekaiMarkUrgent();
+        }
     };
 
     auto handleWMRole = [&]() {
@@ -375,7 +392,6 @@ void CXWM::handlePropertyNotify(xcb_property_notify_event_t* e) {
     readProp(XSURF, e->atom, reply.get());
 }
 
-void sekaiClientMoveStart(PHLWINDOW w); // SEKAI_CLIENT_MOVE (InputManager.cpp)
 
 void CXWM::handleClientMessage(xcb_client_message_event_t* e) {
     const auto XSURF = windowForXID(e->window);
@@ -429,14 +445,16 @@ void CXWM::handleClientMessage(xcb_client_message_event_t* e) {
         // SEKAI_CLIENT_MOVE (X11): 앱이 직접 그린 제목줄을 끌면 X11 앱은 _NET_WM_MOVERESIZE 를 보낸다 — 지원한다고
         //   _NET_SUPPORTED 에 알리면서 처리는 없어, RustDesk(Flutter, XWayland) 같은 창이 끌어도 안 움직였다 (2026-11-26).
         //   방향(data32[2]) 8 = _NET_WM_MOVERESIZE_MOVE — 웨이랜드 xdg_toplevel.move 와 같은 길로 (단추를 누른 채일 때만 시작)
-        if (e->format == 32 && e->data.data32[2] == 8) {
-            for (auto const& w : g_pCompositor->m_windows) {
-                if (w->m_xwaylandSurface.lock() == XSURF) {
-                    sekaiClientMoveStart(w);
-                    break;
-                }
-            }
-        }
+        //   SEKAI_CLIENT_RESIZE: 0~7 = 가장자리·모서리(왼쪽 위부터 시계 방향), 11 = 취소
+        const uint32_t DIR = e->format == 32 ? e->data.data32[2] : 99;
+        if (DIR == 8) {
+            if (const auto W = sekaiWindowFor(XSURF); W)
+                sekaiClientMoveStart(W);
+        } else if (DIR <= 7) {
+            if (const auto W = sekaiWindowFor(XSURF); W)
+                sekaiClientResizeStart(W, (DIR == 1 || DIR == 5) ? 1 : (DIR == 3 || DIR == 7) ? 2 : 0);
+        } else if (DIR == 11)
+            sekaiClientDragCancel();
     } else if (e->type == HYPRATOMS["_NET_WM_STATE"]) {
         if (e->format == 32) {
             uint32_t action = e->data.data32[0];
@@ -459,6 +477,11 @@ void CXWM::handleClientMessage(xcb_client_message_event_t* e) {
                     return false;
                 };
 
+                // SEKAI_X11_URGENT: 주의 요청 상태를 켜면 (1 = 추가, 2 = 바꾸기)
+                if (prop == HYPRATOMS["_NET_WM_STATE_DEMANDS_ATTENTION"] && (action == 1 || action == 2)) {
+                    if (const auto W = sekaiWindowFor(XSURF); W)
+                        W->sekaiMarkUrgent();
+                }
                 if (prop == HYPRATOMS["_NET_WM_STATE_FULLSCREEN"])
                     XSURF->m_state.requestsFullscreen = updateState(action, XSURF->m_fullscreen);
                 // SEKAI_MINIMIZE: 최대화·숨기기(최소화) 요청도 받는다 (전엔 버렸다)
@@ -1027,6 +1050,7 @@ CXWM::CXWM() : m_connection(makeUnique<CXCBConnection>(g_pXWayland->m_server->m_
         HYPRATOMS["_NET_WM_STATE"],        HYPRATOMS["_NET_ACTIVE_WINDOW"],       HYPRATOMS["_NET_WM_MOVERESIZE"],           HYPRATOMS["_NET_WM_STATE_FOCUSED"],
         HYPRATOMS["_NET_WM_STATE_MODAL"],  HYPRATOMS["_NET_WM_STATE_FULLSCREEN"], HYPRATOMS["_NET_WM_STATE_MAXIMIZED_VERT"], HYPRATOMS["_NET_WM_STATE_MAXIMIZED_HORZ"],
         HYPRATOMS["_NET_WM_STATE_HIDDEN"], HYPRATOMS["_NET_CLIENT_LIST"],         HYPRATOMS["_NET_CLIENT_LIST_STACKING"],
+        HYPRATOMS["_NET_WM_STATE_DEMANDS_ATTENTION"], // SEKAI_X11_URGENT
     };
     xcb_change_property(getConnection(), XCB_PROP_MODE_REPLACE, m_screen->root, HYPRATOMS["_NET_SUPPORTED"], XCB_ATOM_ATOM, 32, sizeof(supported) / sizeof(*supported), supported);
 
