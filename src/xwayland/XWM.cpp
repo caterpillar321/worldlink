@@ -375,6 +375,8 @@ void CXWM::handlePropertyNotify(xcb_property_notify_event_t* e) {
     readProp(XSURF, e->atom, reply.get());
 }
 
+void sekaiClientMoveStart(PHLWINDOW w); // SEKAI_CLIENT_MOVE (InputManager.cpp)
+
 void CXWM::handleClientMessage(xcb_client_message_event_t* e) {
     const auto XSURF = windowForXID(e->window);
 
@@ -423,6 +425,18 @@ void CXWM::handleClientMessage(xcb_client_message_event_t* e) {
             break;
         }
 
+    } else if (e->type == HYPRATOMS["_NET_WM_MOVERESIZE"]) {
+        // SEKAI_CLIENT_MOVE (X11): 앱이 직접 그린 제목줄을 끌면 X11 앱은 _NET_WM_MOVERESIZE 를 보낸다 — 지원한다고
+        //   _NET_SUPPORTED 에 알리면서 처리는 없어, RustDesk(Flutter, XWayland) 같은 창이 끌어도 안 움직였다 (2026-11-26).
+        //   방향(data32[2]) 8 = _NET_WM_MOVERESIZE_MOVE — 웨이랜드 xdg_toplevel.move 와 같은 길로 (단추를 누른 채일 때만 시작)
+        if (e->format == 32 && e->data.data32[2] == 8) {
+            for (auto const& w : g_pCompositor->m_windows) {
+                if (w->m_xwaylandSurface.lock() == XSURF) {
+                    sekaiClientMoveStart(w);
+                    break;
+                }
+            }
+        }
     } else if (e->type == HYPRATOMS["_NET_WM_STATE"]) {
         if (e->format == 32) {
             uint32_t action = e->data.data32[0];
