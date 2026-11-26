@@ -55,6 +55,7 @@ void CXWM::handleCreate(xcb_create_notify_event_t* e) {
 
     const auto XSURF = m_surfaces.emplace_back(SP<CXWaylandSurface>(new CXWaylandSurface(e->window, CBox{e->x, e->y, e->width, e->height}, e->override_redirect)));
     XSURF->m_self    = XSURF;
+    XSURF->m_sekaiReqPos = {e->x, e->y}; // SEKAI_X11_POS
     Debug::log(LOG, "[xwm] New XSurface at {:x} with xid of {}", (uintptr_t)XSURF.get(), e->window);
 
     const auto WINDOW = CWindow::create(XSURF);
@@ -84,6 +85,8 @@ void CXWM::handleConfigureRequest(xcb_configure_request_event_t* e) {
     if (!(MASK & GEOMETRY))
         return;
 
+    if (!XSURF->m_mapped && (MASK & (XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y))) // SEKAI_X11_POS: 붙이기 전에 앱이 청한 위치
+        XSURF->m_sekaiReqPos = {MASK & XCB_CONFIG_WINDOW_X ? e->x : XSURF->m_sekaiReqPos.x, MASK & XCB_CONFIG_WINDOW_Y ? e->y : XSURF->m_sekaiReqPos.y};
     XSURF->m_events.configureRequest.emit(CBox{MASK & XCB_CONFIG_WINDOW_X ? e->x : XSURF->m_geometry.x, MASK & XCB_CONFIG_WINDOW_Y ? e->y : XSURF->m_geometry.y,
                                                MASK & XCB_CONFIG_WINDOW_WIDTH ? e->width : XSURF->m_geometry.width,
                                                MASK & XCB_CONFIG_WINDOW_HEIGHT ? e->height : XSURF->m_geometry.height});
@@ -122,7 +125,6 @@ void CXWM::handleMapRequest(xcb_map_request_event_t* e) {
     if (SMALL && !XSURF->m_overrideRedirect) // default to 800 x 800
         XSURF->configure({XSURF->m_geometry.pos(), DESIREDSIZE});
 
-    XSURF->m_sekaiMapGeom = XSURF->m_geometry; // SEKAI_X11_POS
     Debug::log(LOG, "[xwm] Mapping window {} in X (geometry {}x{} at {}x{}))", e->window, XSURF->m_geometry.width, XSURF->m_geometry.height, XSURF->m_geometry.x,
                XSURF->m_geometry.y);
 

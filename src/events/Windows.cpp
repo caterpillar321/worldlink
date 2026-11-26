@@ -31,12 +31,15 @@ void sekaiFullscreenSync(PHLWORKSPACE ws, PHLWINDOW gone = nullptr); // SEKAI_MU
 static bool sekaiX11WantsPos(PHLWINDOW w) {
     if (!w->m_isX11 || !w->m_xwaylandSurface || w->isX11OverrideRedirect() || !w->m_xwaylandSurface->m_sizeHints)
         return false;
+    // 대화상자(부모가 있는 창)는 부모 가운데 그대로 — GTK 가 X11 대화상자 자리를 스스로 셈해 보내는데 어긋났다 (윈도우도 부모 가운데)
+    if (!w->m_xwaylandSurface->m_parent.expired())
+        return false;
     if (!(w->m_xwaylandSurface->m_sizeHints->flags & (1 /* US_POSITION */ | 4 /* P_POSITION */)))
         return false;
-    const auto G = w->m_xwaylandSurface->m_sekaiMapGeom; // 붙여 달라고 한 순간의 자리 (지금 m_geometry 는 배치 전에 0,0 으로 바뀌어 있다)
-    if (G.x == 0 && G.y == 0)
+    const auto R = w->m_xwaylandSurface->m_sekaiReqPos; // 앱이 직접 청한 자리 (m_geometry 는 배치 전에 0,0 으로 바뀌어 있다)
+    if (R.x == 0 && R.y == 0)
         return false;
-    const auto P = g_pXWaylandManager->xwaylandToWaylandCoords(G.pos());
+    const auto P = g_pXWaylandManager->xwaylandToWaylandCoords(R);
     const auto S = w->m_realSize->goal();
     const bool OK = g_pCompositor->isPointOnAnyMonitor(P + Vector2D{1, 1}) && g_pCompositor->isPointOnAnyMonitor(P + S - Vector2D{1, 1});
     Debug::log(LOG, "SEKAI_X11_POS: {} wants {} (on screen: {})", w, P, OK);
@@ -603,7 +606,7 @@ void Events::listener_mapWindow(void* owner, void* data) {
                     //   가운데에 열어, 앱이 0.2초 뒤 제자리로 옮기며 가운데에 잔상이 남았다 (RustDesk, 2026-11-27)
                     if (sekaiX11WantsPos(PWINDOW)) {
                         // 배치 단계도 (0,0) 을 보고 이미 가운데에 놓았다 — 앱이 정한 자리로 옮긴다
-                        *PWINDOW->m_realPosition = g_pXWaylandManager->xwaylandToWaylandCoords(PWINDOW->m_xwaylandSurface->m_sekaiMapGeom.pos());
+                        *PWINDOW->m_realPosition = g_pXWaylandManager->xwaylandToWaylandCoords(PWINDOW->m_xwaylandSurface->m_sekaiReqPos);
                         break;
                     }
                     auto       RESERVEDOFFSET = Vector2D();
