@@ -248,6 +248,11 @@ class CWindow {
     // SEKAI_X11_URGENT: 초점을 옮기지 않고 긴급 표시·"urgent" 이벤트만 (X11 WM_HINTS 긴급·_NET_WM_STATE_DEMANDS_ATTENTION —
     //   작업 표시줄이 단추를 깜빡인다). activate() 는 설정에 따라 창을 끌어오기까지 해서 따로 둔다
     void sekaiMarkUrgent();
+    // SEKAI_X11_REVEAL: 위치 표시 없는 X11 창은 붙인 뒤 잠깐 투명하게 — 앱이 붙인 직후 스스로 기억한 자리로 옮기면(Flutter 창 관리 등)
+    //   합성기가 놓은 가운데에 잠깐 보였다가 사라지는 잔상이 났다 (RustDesk). 그동안 옮기면 옮긴 자리에서 나타난다
+    bool                    m_sekaiHoldReveal = false;
+    void                    sekaiHoldRevealFor(int ms);
+    void                    sekaiReveal();
 
     // for proper cycling. While cycling we can't just move the pointers, so we need to keep track of the last cycled window.
     PHLWINDOWREF m_lastCycledWindow;

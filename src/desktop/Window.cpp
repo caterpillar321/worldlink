@@ -34,6 +34,7 @@ void sekaiFullscreenSync(PHLWORKSPACE ws, PHLWINDOW gone = nullptr); // SEKAI_MU
 #include "../managers/HookSystemManager.hpp"
 #include "../managers/EventManager.hpp"
 #include "../managers/input/InputManager.hpp"
+#include "../managers/eventLoop/EventLoopManager.hpp"
 #include "../protocols/XDGDialog.hpp"
 
 #include <hyprutils/string/String.hpp>
@@ -1402,6 +1403,31 @@ std::unordered_map<std::string, std::string> CWindow::getEnv() {
     }
 
     return results;
+}
+
+void CWindow::sekaiHoldRevealFor(int ms) {
+    m_sekaiHoldReveal = true;
+    m_alpha->setValueAndWarp(0.f);
+    const PHLWINDOWREF WR    = m_self;
+    const auto         TIMER = makeShared<CEventLoopTimer>(
+        std::chrono::milliseconds(ms),
+        [WR](SP<CEventLoopTimer> self, void* data) {
+            if (const auto W = WR.lock(); W && W->m_sekaiHoldReveal)
+                W->sekaiReveal();
+            g_pEventLoopManager->doLater([self] { g_pEventLoopManager->removeTimer(self); }); // 불리는 중에 빼지 않는다
+        },
+        nullptr);
+    g_pEventLoopManager->addTimer(TIMER);
+}
+
+void CWindow::sekaiReveal() {
+    if (!m_sekaiHoldReveal)
+        return;
+    m_sekaiHoldReveal = false;
+    if (!m_isMapped || m_fadingOut)
+        return;
+    Debug::log(LOG, "SEKAI_X11_REVEAL: {} shows at {}", m_self.lock(), m_realPosition->goal());
+    *m_alpha = 1.f;
 }
 
 void CWindow::sekaiMarkUrgent() {
