@@ -122,6 +122,7 @@ void CXWM::handleMapRequest(xcb_map_request_event_t* e) {
     if (SMALL && !XSURF->m_overrideRedirect) // default to 800 x 800
         XSURF->configure({XSURF->m_geometry.pos(), DESIREDSIZE});
 
+    XSURF->m_sekaiMapGeom = XSURF->m_geometry; // SEKAI_X11_POS
     Debug::log(LOG, "[xwm] Mapping window {} in X (geometry {}x{} at {}x{}))", e->window, XSURF->m_geometry.width, XSURF->m_geometry.height, XSURF->m_geometry.x,
                XSURF->m_geometry.y);
 

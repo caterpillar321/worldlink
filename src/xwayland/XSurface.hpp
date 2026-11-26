@@ -75,6 +75,7 @@ class CXWaylandSurface {
     uint32_t                          m_lastPingSeq = 0;
     pid_t                             m_pid         = 0;
     CBox                              m_geometry;
+    CBox m_sekaiMapGeom; // SEKAI_X11_POS: 앱이 붙여 달라고 한 순간(MapRequest)의 위치·크기 — 배치 전에 (0,0) 으로 다시 잡혀서 따로 적어 둔다
     bool                              m_overrideRedirect = false;
     bool                              m_withdrawn        = false;
     bool                              m_fullscreen       = false;
