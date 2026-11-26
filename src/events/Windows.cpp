@@ -2,19 +2,6 @@
 bool sekaiTakeInitialMaximize(PHLWINDOW w); // SEKAI_INITIAL_MAXIMIZE (desktop/Window.cpp)
 void sekaiFullscreenSync(PHLWORKSPACE ws, PHLWINDOW gone = nullptr); // SEKAI_MULTIMAX (Compositor.cpp)
 
-// SEKAI_X11_POS: X11 창이 처음 위치를 정해 두었나 (WM_NORMAL_HINTS 의 USPosition(1)·PPosition(4) + (0,0) 이 아니고 화면 안)
-static bool sekaiX11WantsPos(PHLWINDOW w) {
-    if (!w->m_isX11 || !w->m_xwaylandSurface || w->isX11OverrideRedirect() || !w->m_xwaylandSurface->m_sizeHints)
-        return false;
-    if (!(w->m_xwaylandSurface->m_sizeHints->flags & (1 /* US_POSITION */ | 4 /* P_POSITION */)))
-        return false;
-    const auto G = w->m_xwaylandSurface->m_geometry;
-    if (G.x == 0 && G.y == 0)
-        return false;
-    const auto P = g_pXWaylandManager->xwaylandToWaylandCoords(G.pos());
-    const auto S = w->m_realSize->goal();
-    return g_pCompositor->isPointOnAnyMonitor(P + Vector2D{1, 1}) && g_pCompositor->isPointOnAnyMonitor(P + S - Vector2D{1, 1});
-}
 
 #include "../Compositor.hpp"
 #include "../helpers/WLClasses.hpp"
@@ -39,6 +26,20 @@ static bool sekaiX11WantsPos(PHLWINDOW w) {
 #include "../managers/AnimationManager.hpp"
 
 #include <hyprutils/string/String.hpp>
+
+// SEKAI_X11_POS: X11 창이 처음 위치를 정해 두었나 (WM_NORMAL_HINTS 의 USPosition(1)·PPosition(4) + (0,0) 이 아니고 화면 안)
+static bool sekaiX11WantsPos(PHLWINDOW w) {
+    if (!w->m_isX11 || !w->m_xwaylandSurface || w->isX11OverrideRedirect() || !w->m_xwaylandSurface->m_sizeHints)
+        return false;
+    if (!(w->m_xwaylandSurface->m_sizeHints->flags & (1 /* US_POSITION */ | 4 /* P_POSITION */)))
+        return false;
+    const auto G = w->m_xwaylandSurface->m_geometry;
+    if (G.x == 0 && G.y == 0)
+        return false;
+    const auto P = g_pXWaylandManager->xwaylandToWaylandCoords(G.pos());
+    const auto S = w->m_realSize->goal();
+    return g_pCompositor->isPointOnAnyMonitor(P + Vector2D{1, 1}) && g_pCompositor->isPointOnAnyMonitor(P + S - Vector2D{1, 1});
+}
 using namespace Hyprutils::String;
 using namespace Hyprutils::Animation;
 
