@@ -1408,6 +1408,7 @@ std::unordered_map<std::string, std::string> CWindow::getEnv() {
 void CWindow::sekaiHoldRevealFor(int ms) {
     m_sekaiHoldReveal = true;
     m_alpha->setValueAndWarp(0.f);
+    Debug::log(LOG, "SEKAI_X11_REVEAL: {} held for {}ms", m_self.lock(), ms);
     const PHLWINDOWREF WR    = m_self;
     const auto         TIMER = makeShared<CEventLoopTimer>(
         std::chrono::milliseconds(ms),

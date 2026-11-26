@@ -767,6 +767,9 @@ void Events::listener_mapWindow(void* owner, void* data) {
     *PWINDOW->m_alpha = 1.f;
 
     // SEKAI_X11_REVEAL: 위치 표시 없는 X11 일반 창(대화상자·팝업·테두리 없는 창 빼고)은 0.2초 뒤에 나타난다 — 그 사이 앱이 스스로 옮기면 그 자리에서
+    if (PWINDOW->m_isX11 && PWINDOW->m_xwaylandSurface)
+        Debug::log(LOG, "SEKAI_X11_REVEAL: {} or {} parent {} floating {} fs {} noborders {}", PWINDOW, PWINDOW->isX11OverrideRedirect(),
+                   !PWINDOW->m_xwaylandSurface->m_parent.expired(), PWINDOW->m_isFloating, PWINDOW->isFullscreen(), PWINDOW->m_X11DoesntWantBorders);
     if (PWINDOW->m_isX11 && PWINDOW->m_xwaylandSurface && !PWINDOW->isX11OverrideRedirect() && PWINDOW->m_xwaylandSurface->m_parent.expired() &&
         PWINDOW->m_isFloating && !PWINDOW->isFullscreen() && !PWINDOW->m_X11DoesntWantBorders && !sekaiX11WantsPos(PWINDOW))
         PWINDOW->sekaiHoldRevealFor(200);
