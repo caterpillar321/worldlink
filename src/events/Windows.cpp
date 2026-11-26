@@ -29,6 +29,9 @@ void sekaiFullscreenSync(PHLWORKSPACE ws, PHLWINDOW gone = nullptr); // SEKAI_MU
 
 // SEKAI_X11_POS: X11 창이 처음 위치를 정해 두었나 (WM_NORMAL_HINTS 의 USPosition(1)·PPosition(4) + (0,0) 이 아니고 화면 안)
 static bool sekaiX11WantsPos(PHLWINDOW w) {
+    if (w->m_isX11 && w->m_xwaylandSurface)
+        Debug::log(LOG, "SEKAI_X11_POS: {} hints {} flags {} geom {} size {}", w, (bool)w->m_xwaylandSurface->m_sizeHints,
+                   w->m_xwaylandSurface->m_sizeHints ? w->m_xwaylandSurface->m_sizeHints->flags : -1, w->m_xwaylandSurface->m_geometry, w->m_realSize->goal());
     if (!w->m_isX11 || !w->m_xwaylandSurface || w->isX11OverrideRedirect() || !w->m_xwaylandSurface->m_sizeHints)
         return false;
     if (!(w->m_xwaylandSurface->m_sizeHints->flags & (1 /* US_POSITION */ | 4 /* P_POSITION */)))
